@@ -1,0 +1,124 @@
+{% extends "dashboard/base.html" %}
+{% block title %}{{ article.titre|truncatechars:40 }} — Profile{% endblock %}
+
+{% block content %}
+<div class="space-y-10 animate-fade-in">
+    <!-- Header/Breadcrumb -->
+    <header class="flex items-start justify-between">
+        <div class="max-w-4xl">
+            <a href="{% url 'dashboard:corpus' %}" class="inline-flex items-center text-zinc-500 hover:text-white text-xs font-semibold mb-6 transition-colors">
+                <i class="fas fa-arrow-left mr-2"></i>Back to Repository
+            </a>
+            <h1 class="text-3xl font-bold tracking-tight leading-tight mb-4">{{ article.titre }}</h1>
+            <div class="flex flex-wrap items-center gap-3">
+                {% for author in article.auteurs %}
+                <span class="flex items-center space-x-2 bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1 text-xs">
+                    <div class="w-4 h-4 rounded-full bg-zinc-800 flex items-center justify-center text-[8px] font-bold">{{ author|slice:":1" }}</div>
+                    <span>{{ author }}</span>
+                </span>
+                {% endfor %}
+                <span class="text-zinc-500 mx-2">•</span>
+                <span class="text-zinc-400 text-xs font-mono uppercase">{{ article.annee }}</span>
+            </div>
+        </div>
+        <div class="flex space-x-3">
+            <button class="w-10 h-10 rounded-xl border border-indigo-500/30 flex items-center justify-center text-indigo-400 hover:bg-indigo-500/20 hover:text-white transition-all"><i class="fas fa-share-nodes"></i></button>
+            <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-sm font-semibold transition-all">Download PDF</button>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Main Column -->
+        <div class="lg:col-span-2 space-y-8">
+            <!-- Abstract -->
+            <div class="glass rounded-2xl p-8">
+                <h3 class="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Core Abstract</h3>
+                <p class="text-zinc-300 leading-relaxed text-sm lg:text-base">{{ article.abstract|default:"No semantic summary extracted for this manuscript." }}</p>
+            </div>
+
+            <!-- Key Claims/Contribution -->
+            <div class="glass rounded-2xl p-8">
+                <h3 class="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6">Semantic Contribution</h3>
+                <div class="flex space-x-6">
+                    <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
+                        <i class="fas fa-lightbulb text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-zinc-200 leading-relaxed italic">{{ article.contribution_principale|default:"Agent failed to synthesize a distinct contribution." }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Limitations -->
+            {% if article.limites_declarees %}
+            <div class="glass rounded-2xl p-8">
+                <h3 class="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6">Research Boundaries</h3>
+                <ul class="space-y-4">
+                    {% for limit in article.limites_declarees %}
+                    <li class="flex items-start space-x-4">
+                        <div class="mt-1 w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></div>
+                        <span class="text-sm text-zinc-400">{{ limit }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar Column -->
+        <div class="space-y-8">
+            <!-- Metadata Card -->
+            <div class="glass rounded-2xl p-6 divide-y divide-zinc-800">
+                <div class="pb-4">
+                    <h3 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Integrity Audit</h3>
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="text-xs text-zinc-400">Extraction Confidence</span>
+                        <span class="text-xs font-mono font-bold {% if article.qualite.niveau == 'élevé' %}text-emerald-500{% else %}text-amber-500{% endif %}">{{ article.qualite.score }}%</span>
+                    </div>
+                    <div class="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-indigo-500" style="width: {{ article.qualite.score }}%"></div>
+                    </div>
+                </div>
+                <div class="py-4 space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-xs text-zinc-500">Evidence Level</span>
+                        <span class="text-xs text-zinc-200 font-medium">{{ article.evidence_level|default:"N/A" }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-xs text-zinc-500">Manuscript Type</span>
+                        <span class="text-xs text-zinc-200 font-medium">{{ article.claim_type|default:"Unknown" }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-xs text-zinc-500">Language</span>
+                        <span class="text-xs text-zinc-200 font-medium uppercase">{{ article.langue|default:"EN" }}</span>
+                    </div>
+                </div>
+                <div class="pt-4">
+                    <h3 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Source Mapping</h3>
+                    <div class="flex items-center space-x-3 text-xs bg-zinc-900/50 p-3 rounded-lg border border-zinc-800/50">
+                        <i class="fas fa-file-pdf text-rose-500"></i>
+                        <span class="text-zinc-400 truncate">{{ article.fichier_source }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Taxonomies -->
+            <div class="glass rounded-2xl p-6">
+                <h3 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Taxonomy & Tags</h3>
+                <div class="flex flex-wrap gap-2">
+                    {% for tag in article.mots_cles %}
+                    <span class="px-2.5 py-1 rounded-md bg-indigo-500/10 text-indigo-400 text-[10px] font-bold border border-indigo-500/20 uppercase tracking-tighter">{{ tag }}</span>
+                    {% endfor %}
+                </div>
+                
+                <h3 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4 mt-6">Methodological Framework</h3>
+                <div class="flex flex-wrap gap-2">
+                    {% for method in article.methodes %}
+                    <span class="px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20 uppercase tracking-tighter">{{ method }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

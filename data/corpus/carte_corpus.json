@@ -1,0 +1,416 @@
+{
+  "meta": {
+    "nb_themes": 2,
+    "nb_articles_total": 18,
+    "stats_clustering": {
+      "algorithme": "hdbscan",
+      "k_optimal": 2,
+      "scores_silhouette": {
+        "3": 0.363,
+        "4": 0.4061,
+        "5": 0.5107,
+        "6": 0.6425,
+        "7": 0.6786
+      },
+      "meilleur_silhouette": 0.6786,
+      "nb_articles_total": 18,
+      "distribution_themes": {
+        "0": 10,
+        "1": 8
+      }
+    },
+    "analyse_narrative_globale": "Analyse narrative non disponible."
+  },
+  "themes": {
+    "0": {
+      "nom_theme": "Thème 1",
+      "description_theme": "Description non disponible.",
+      "sous_themes": [],
+      "methodes_dominantes": [],
+      "approche_dominante": "unknown",
+      "populations_etudiees": [],
+      "mots_cles_representatifs": [],
+      "niveau_maturite": "unknown",
+      "resume_narratif": "",
+      "cluster_id": 0,
+      "nb_articles": 10,
+      "articles": [
+        {
+          "doc_id": "41f9547a-4935-4fda-a6ea-cc80ef3f9a42",
+          "titre": "A Comprehensive Review of Artificial Intelligence and Machine Learning: Concepts, Trends, and Applications",
+          "annee": 2024,
+          "fichier_source": "A_Comprehensive_Review_of_Artificial_Intelligence_.pdf",
+          "langue": "en",
+          "claim_type": "review",
+          "evidence_level": "moderate",
+          "coord_x": 0.0832595782234748,
+          "coord_y": 0.21861567247742375
+        },
+        {
+          "doc_id": "eb03e699-468c-4c9e-a458-b67324e44239",
+          "titre": "Le développement durable face à sa crise : un concept menacé, sous-exploité ou dépassé ?",
+          "annee": 2014,
+          "fichier_source": "developpementdurable-10196.pdf",
+          "langue": "fr",
+          "claim_type": "theoretical",
+          "evidence_level": "moderate",
+          "coord_x": 0.4358169499000555,
+          "coord_y": -0.09774347442613487
+        },
+        {
+          "doc_id": "5f3d4f4c-9478-4ceb-9781-df628dec41ba",
+          "titre": "Economic Reform and Armed Conflict in Mozambique",
+          "annee": 1991,
+          "fichier_source": "Economic-reform-and-armed-conflict-in-Mozambique_1991_World-Development.pdf",
+          "langue": "en",
+          "claim_type": "empirical",
+          "evidence_level": "moderate",
+          "coord_x": 0.29790957392555356,
+          "coord_y": 0.3862770894842027
+        },
+        {
+          "doc_id": "9485da5a-d489-4665-8c5a-a41035772c23",
+          "titre": "The Evolution of Sustainable Development Theory: Types, Goals, and Research Prospects",
+          "annee": 2019,
+          "fichier_source": "sustainability-11-07158.pdf",
+          "langue": "en",
+          "claim_type": "review",
+          "evidence_level": "moderate",
+          "coord_x": 0.5180152909071953,
+          "coord_y": -0.05172076914550811
+        },
+        {
+          "doc_id": "3d5ec711-1d9c-417f-9af7-b329be1592f4",
+          "titre": "Multiple Criteria Decision Making for the Achievement of the UN Sustainable Development Goals: A Systematic Literature Review and a Research Agenda",
+          "annee": 2021,
+          "fichier_source": "sustainability-13-04129-v2.pdf",
+          "langue": "en",
+          "claim_type": "review",
+          "evidence_level": "strong",
+          "coord_x": 0.19286091337202577,
+          "coord_y": -0.06682399320442356
+        },
+        {
+          "doc_id": "0faf5004-80ee-4ca4-8caf-64e4cc102bfc",
+          "titre": "Semi-Systematic Literature Review on Sustainability and Sustainable Development in Higher Education Institutions",
+          "annee": 2021,
+          "fichier_source": "sustainability-13-07683.pdf",
+          "langue": "en",
+          "claim_type": "review",
+          "evidence_level": "moderate",
+          "coord_x": 0.3754051704951166,
+          "coord_y": -0.19187343643368876
+        },
+        {
+          "doc_id": "2a6e8f6b-5c50-4ed5-8559-2eac5427d4c8",
+          "titre": "Progress by Research to Achieve the Sustainable Development Goals in the EU: A Systematic Literature Review",
+          "annee": 2023,
+          "fichier_source": "sustainability-15-07055-v3.pdf",
+          "langue": "en",
+          "claim_type": "review",
+          "evidence_level": "strong",
+          "coord_x": 0.34721178846264034,
+          "coord_y": 0.054737616301632486
+        },
+        {
+          "doc_id": "cf64631f-1599-4d23-9b3e-45cc20f0504b",
+          "titre": "Le développement durable face à sa crise : un concept menacé, sous-exploité ou dépassé ?",
+          "annee": 2014,
+          "fichier_source": "developpementdurable-10196.pdf",
+          "langue": "fr",
+          "claim_type": "theoretical",
+          "evidence_level": "weak",
+          "coord_x": 0.43476225883203823,
+          "coord_y": -0.09898763759750506
+        },
+        {
+          "doc_id": "261140cb-f2ef-4c9f-9918-6c04f5d1ef41",
+          "titre": "Economic Reform and Armed Conflict in Mozambique",
+          "annee": 1991,
+          "fichier_source": "Economic-reform-and-armed-conflict-in-Mozambique_1991_World-Development.pdf",
+          "langue": "en",
+          "claim_type": "empirical",
+          "evidence_level": "moderate",
+          "coord_x": 0.29790957392555356,
+          "coord_y": 0.3862770894842027
+        },
+        {
+          "doc_id": "367beb79-6e7a-4b8d-8f52-ec79d5b65fb2",
+          "titre": "The Evolution of Sustainable Development Theory: Types, Goals, and Research Prospects",
+          "annee": 2019,
+          "fichier_source": "sustainability-11-07158.pdf",
+          "langue": "en",
+          "claim_type": "review",
+          "evidence_level": "moderate",
+          "coord_x": 0.5180152909071953,
+          "coord_y": -0.05172076914550811
+        }
+      ],
+      "evolution_temporelle": {
+        "distribution_annuelle": {
+          "1991": 2,
+          "2014": 2,
+          "2019": 2,
+          "2021": 2,
+          "2023": 1,
+          "2024": 1
+        },
+        "annee_premiere_publication": 1991,
+        "annee_pic": 1991,
+        "tendance": "decroissante",
+        "nb_articles_5_dernieres_annees": 4
+      },
+      "carte_methodes": {
+        "methodes_frequences": {
+          "analyse économique": 2,
+          "revue systématique de la littérature": 2,
+          "revue de littérature": 1,
+          "literature survey method": 1,
+          "induction method": 1,
+          "normative analysis": 1,
+          "revue de la littérature semi-systématique": 1,
+          "analyse descriptive": 1,
+          "analyse bibliométrique": 1,
+          "analyse de contenu": 1
+        },
+        "methode_dominante": "analyse économique",
+        "nb_methodes_distinctes": 13,
+        "claim_types": {
+          "review": 6,
+          "theoretical": 2,
+          "empirical": 2
+        },
+        "evidence_levels": {
+          "moderate": 7,
+          "strong": 2,
+          "weak": 1
+        }
+      },
+      "auteurs_principaux": {
+        "auteurs_frequences": {
+          "Jacques Theys": 2,
+          "Steven Kyle": 2,
+          "Longyu Shi": 2,
+          "Linwei Han": 2,
+          "Fengmei Yang": 2,
+          "Lijie Gao": 2,
+          "Akanksha Mishra": 1,
+          "Manuel Sousa": 1
+        },
+        "auteurs_principaux": [
+          "Jacques Theys",
+          "Steven Kyle",
+          "Longyu Shi",
+          "Linwei Han",
+          "Fengmei Yang"
+        ],
+        "nb_auteurs_distincts": 17
+      }
+    },
+    "1": {
+      "nom_theme": "Thème 2",
+      "description_theme": "Description non disponible.",
+      "sous_themes": [],
+      "methodes_dominantes": [],
+      "approche_dominante": "unknown",
+      "populations_etudiees": [],
+      "mots_cles_representatifs": [],
+      "niveau_maturite": "unknown",
+      "resume_narratif": "",
+      "cluster_id": 1,
+      "nb_articles": 8,
+      "articles": [
+        {
+          "doc_id": "db996813-0e54-4fa0-a5c7-7331e06d3ccd",
+          "titre": "Opportunities of super high-density olive orchard to improve soil quality: Management guidelines for application of pruning residues",
+          "annee": 2021,
+          "fichier_source": "1-s2.0-S0301479721008471-main.pdf",
+          "langue": "en",
+          "claim_type": "empirical",
+          "evidence_level": "moderate",
+          "coord_x": -0.5024855028589312,
+          "coord_y": 0.5779215227287018
+        },
+        {
+          "doc_id": "119bd0c0-a181-46b8-9739-c1ff6db00e8c",
+          "titre": "Assessment of alkaline stabilization processes in industrial waste streams using a model-based approach",
+          "annee": 2021,
+          "fichier_source": "Assessment-of-alkaline-stabilization-processes-in-ind_2021_Journal-of-Enviro.pdf",
+          "langue": "en",
+          "claim_type": "empirical",
+          "evidence_level": "strong",
+          "coord_x": -0.416157657790733,
+          "coord_y": -0.28108884280063273
+        },
+        {
+          "doc_id": "8d9088c5-4b53-4bc9-a664-48b5dde7f053",
+          "titre": "Comparison between two reactors using Trametes versicolor for agricultural wastewater treatment under non-sterile condition in sequencing batch mode",
+          "annee": 2021,
+          "fichier_source": "Comparison-between-two-reactors-using-Trametes-versicolor_2021_Journal-of-En.pdf",
+          "langue": "en",
+          "claim_type": "empirical",
+          "evidence_level": "strong",
+          "coord_x": -0.5596336465362943,
+          "coord_y": -0.0033488333524135908
+        },
+        {
+          "doc_id": "3eb75bf7-4226-4f1e-a956-c720e7ff3fa9",
+          "titre": "Exceptions and exemptions under the ballast water management convention Sustainable alternatives for ballast water management?",
+          "annee": 2021,
+          "fichier_source": "Exceptions-and-exemptions-under-the-ballast-water-manag_2021_Journal-of-Envi.pdf",
+          "langue": "en",
+          "claim_type": "empirical",
+          "evidence_level": "moderate",
+          "coord_x": -0.2850610465843046,
+          "coord_y": -0.5350784566957779
+        },
+        {
+          "doc_id": "80021de2-ea93-499e-8e32-2dc5259d8fde",
+          "titre": "Opportunities of super high-density olive orchard to improve soil quality: Management guidelines for application of pruning residues",
+          "annee": 2021,
+          "fichier_source": "1-s2.0-S0301479721008471-main.pdf",
+          "langue": "en",
+          "claim_type": "empirical",
+          "evidence_level": "moderate",
+          "coord_x": -0.5024855028589312,
+          "coord_y": 0.5779215227287019
+        },
+        {
+          "doc_id": "13ec9dbb-f694-40be-a013-5e67d84612e9",
+          "titre": "Assessment of alkaline stabilization processes in industrial waste streams using a model-based approach",
+          "annee": 2021,
+          "fichier_source": "Assessment-of-alkaline-stabilization-processes-in-ind_2021_Journal-of-Enviro.pdf",
+          "langue": "en",
+          "claim_type": "empirical",
+          "evidence_level": "strong",
+          "coord_x": -0.3891530242792119,
+          "coord_y": -0.28593690838473057
+        },
+        {
+          "doc_id": "7ce994bb-34e7-4632-9033-7048f1164afb",
+          "titre": "Comparison between two reactors using Trametes versicolor for agricultural wastewater treatment under non-sterile condition in sequencing batch mode",
+          "annee": 2021,
+          "fichier_source": "Comparison-between-two-reactors-using-Trametes-versicolor_2021_Journal-of-En.pdf",
+          "langue": "en",
+          "claim_type": "empirical",
+          "evidence_level": "moderate",
+          "coord_x": -0.5596336465362943,
+          "coord_y": -0.0033488333524135908
+        },
+        {
+          "doc_id": "19994bda-bb8d-4a0b-963b-e06a2565b932",
+          "titre": "Exceptions and exemptions under the ballast water management convention Sustainable alternatives for ballast water management?",
+          "annee": 2021,
+          "fichier_source": "Exceptions-and-exemptions-under-the-ballast-water-manag_2021_Journal-of-Envi.pdf",
+          "langue": "en",
+          "claim_type": "empirical",
+          "evidence_level": "moderate",
+          "coord_x": -0.28655636150614855,
+          "coord_y": -0.5340785586661287
+        }
+      ],
+      "evolution_temporelle": {
+        "distribution_annuelle": {
+          "2021": 8
+        },
+        "annee_premiere_publication": 2021,
+        "annee_pic": 2021,
+        "tendance": "insuffisant",
+        "nb_articles_5_dernieres_annees": 8
+      },
+      "carte_methodes": {
+        "methodes_frequences": {
+          "expérimentation": 2,
+          "modélisation": 2,
+          "utilisation de trametes versicolor": 2,
+          "réacteur à lit fluidisé": 2,
+          "joint harmonised procedure": 2,
+          "same risk area": 2,
+          "analyse de bilan de masse": 1,
+          "diagrammes de sankey": 1,
+          "réacteur à lit filtrant": 1,
+          "analyse de sankey": 1
+        },
+        "methode_dominante": "expérimentation",
+        "nb_methodes_distinctes": 12,
+        "claim_types": {
+          "empirical": 8
+        },
+        "evidence_levels": {
+          "moderate": 5,
+          "strong": 3
+        }
+      },
+      "auteurs_principaux": {
+        "auteurs_frequences": {
+          "Encarnacio n V. Taguasa": 2,
+          "Vctor Marn-Moreno": 2,
+          "Concepcio n M. Deza": 2,
+          "Luciano Mateos": 2,
+          "Diego Barranco": 2,
+          "Francisco-Javier Mesas-Carrascosaa": 2,
+          "Rafael P ereza": 2,
+          "Alfonso Garca-Ferrera": 2
+        },
+        "auteurs_principaux": [
+          "Encarnacio n V. Taguasa",
+          "Vctor Marn-Moreno",
+          "Concepcio n M. Deza",
+          "Luciano Mateos",
+          "Diego Barranco"
+        ],
+        "nb_auteurs_distincts": 30
+      }
+    }
+  },
+  "evolution_globale": {
+    "distribution_annuelle": {
+      "1991": 2,
+      "2014": 2,
+      "2019": 2,
+      "2021": 10,
+      "2023": 1,
+      "2024": 1
+    },
+    "annees_couvertes": [
+      1991,
+      2014,
+      2019,
+      2021,
+      2023,
+      2024
+    ],
+    "pic_global": 2021
+  },
+  "carte_methodes_globale": {
+    "methodes_frequences": {
+      "expérimentation": 2,
+      "modélisation": 2,
+      "utilisation de trametes versicolor": 2,
+      "réacteur à lit fluidisé": 2,
+      "analyse économique": 2,
+      "joint harmonised procedure": 2,
+      "same risk area": 2,
+      "revue systématique de la littérature": 2,
+      "revue de littérature": 1,
+      "analyse de bilan de masse": 1,
+      "diagrammes de sankey": 1,
+      "réacteur à lit filtrant": 1,
+      "literature survey method": 1,
+      "induction method": 1,
+      "normative analysis": 1
+    },
+    "methode_dominante": "expérimentation",
+    "nb_methodes_distinctes": 25,
+    "claim_types": {
+      "review": 6,
+      "empirical": 10,
+      "theoretical": 2
+    },
+    "evidence_levels": {
+      "moderate": 12,
+      "strong": 5,
+      "weak": 1
+    }
+  }
+}

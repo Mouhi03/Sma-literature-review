@@ -1,0 +1,343 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MindTheGap — Propulsez votre recherche{% endblock %}</title>
+    
+    <!-- External Assets -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Poppins', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        border: "hsl(240 3.7% 15.9%)",
+                        background: "hsl(240 10% 3.9%)",
+                        foreground: "hsl(0 0% 98%)",
+                        primary: "#695CFE",
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --color-text-primary: #1F2936;
+            --color-text-placeholder: #798EAE;
+            --color-bg-primary: #f9fafb;
+            --color-bg-secondary: #ECECFD;
+            --color-bg-sidebar: #FFFFFF;
+            --color-border-hr: #E2E8F0;
+            --color-hover-primary: #695CFE;
+            --color-hover-secondary: #e2e2fb;
+            --color-shadow: rgba(0, 0, 0, 0.05);
+        }
+
+        body.dark-theme {
+            --color-text-primary: #F1F5F9;
+            --color-text-placeholder: #A6B7D2;
+            --color-bg-primary: #09090b;
+            --color-bg-secondary: #1e1e2e;
+            --color-bg-sidebar: #11111a;
+            --color-border-hr: #27272a;
+            --color-hover-secondary: #2d2d3d;
+            --color-shadow: rgba(0, 0, 0, 0.3);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            min-height: 100vh; 
+            background: var(--color-bg-primary); 
+            color: var(--color-text-primary);
+            transition: background 0.3s ease;
+        }
+
+        /* Sidebar Styling */
+        .sidebar {
+            position: sticky;
+            top: 0;
+            width: 270px;
+            height: 100vh;
+            display: flex;
+            flex-shrink: 0;
+            flex-direction: column;
+            background: var(--color-bg-sidebar);
+            border-right: 1px solid var(--color-border-hr);
+            box-shadow: 0 3px 9px var(--color-shadow);
+            transition: width 0.4s ease;
+            z-index: 100;
+        }
+
+        .sidebar.collapsed { width: 90px; }
+
+        .sidebar .sidebar-header {
+            padding: 20px 18px;
+            display: flex;
+            position: relative;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--color-border-hr);
+        }
+
+        .header-logo-container {
+            width: 46px;
+            height: 46px;
+            background: var(--color-hover-primary);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            transition: opacity 0.4s ease;
+        }
+
+        .sidebar.collapsed .sidebar-branding { opacity: 0; width: 0; pointer-events: none; overflow: hidden; }
+
+        .sidebar-toggle {
+            height: 40px;
+            width: 40px;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            position: absolute;
+            right: 18px;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            color: var(--color-text-primary);
+            background: var(--color-bg-secondary);
+            transition: 0.4s ease;
+        }
+
+        .sidebar.collapsed .sidebar-toggle { transform: translateX(-2px); height: 48px; width: 50px; }
+        .sidebar-toggle span { font-size: 1.75rem; transition: transform 0.4s ease; }
+        .sidebar.collapsed .sidebar-toggle span { transform: rotate(180deg); }
+
+        .sidebar .sidebar-content {
+            flex: 1;
+            padding: 20px 18px;
+            overflow: hidden auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--color-text-placeholder) transparent;
+        }
+
+        .sidebar.collapsed .sidebar-content { scrollbar-width: none; }
+
+        .search-form {
+            border-radius: 8px;
+            min-height: 48px;
+            margin: 5px 0 20px;
+            align-items: center;
+            display: flex;
+            padding: 0 15px;
+            white-space: nowrap;
+            background: var(--color-bg-secondary);
+            transition: 0.4s ease;
+        }
+
+        .search-form input {
+            background: none; outline: none; border: none; width: 100%;
+            margin-left: 15px; font-size: 1rem; color: var(--color-text-primary);
+        }
+
+        .menu-list { display: flex; gap: 4px; list-style: none; flex-direction: column; }
+        .menu-link {
+            display: flex; gap: 12px; white-space: nowrap; border-radius: 8px;
+            padding: 12px 15px; align-items: center; text-decoration: none;
+            color: var(--color-text-primary); transition: 0.3s ease;
+        }
+
+        .sidebar.collapsed .menu-link .menu-label { opacity: 0; pointer-events: none; }
+        .menu-link:is(:hover, .active) { color: #fff !important; background: var(--color-hover-primary); }
+
+        .sidebar .sidebar-footer { padding: 20px 18px; border-top: 1px solid var(--color-border-hr); }
+
+        .theme-toggle {
+            width: 100%; min-height: 48px; border-radius: 8px; display: flex;
+            align-items: center; cursor: pointer; border: none; padding: 0 15px;
+            background: var(--color-bg-secondary); color: var(--color-text-primary); transition: 0.3s ease;
+        }
+
+        .theme-toggle .theme-label { display: flex; gap: 10px; align-items: center; }
+        .sidebar.collapsed .theme-toggle :where(.theme-text, .theme-toggle-track) { opacity: 0; width: 0; transition: all 0.2s ease; }
+
+        .theme-toggle-track {
+            height: 24px; width: 48px; border-radius: 999px; margin-left: auto;
+            background: #c3d1ec; position: relative; transition: background-color 0.3s ease;
+        }
+
+        body.dark-theme .theme-toggle-track { background: #695CFE; }
+        .theme-toggle-indicator {
+            position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+            border-radius: 50%; background-color: #fff; transition: transform 0.3s ease;
+        }
+        body.dark-theme .theme-toggle-indicator { transform: translateX(24px); }
+
+        /* Main Content Adjustments */
+        .main-container { display: flex; width: 100%; }
+        .main-content { flex: 1; padding: 40px; min-width: 0; }
+
+        /* Glass Cards integration */
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        body:not(.dark-theme) .glass { background: rgba(0, 0, 0, 0.02); border: 1px solid rgba(0, 0, 0, 0.05); }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="dark-theme">
+    <div class="main-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="header-logo-container">
+                    <span class="material-symbols-rounded">rocket_launch</span>
+                </div>
+                <div class="sidebar-branding ml-3 flex flex-col transition-all duration-400">
+                    <span class="font-black text-xl tracking-tighter text-white">MindTheGap</span>
+                    <span class="text-[8px] font-bold text-indigo-400 uppercase tracking-widest leading-none">Research OS</span>
+                </div>
+                <button class="sidebar-toggle">
+                    <span class="material-symbols-rounded">chevron_left</span>
+                </button>
+            </div>
+
+            <div class="sidebar-content">
+                <form action="#" class="search-form">
+                    <span class="material-symbols-rounded">search</span>
+                    <input type="search" placeholder="Quick Search..." required />
+                </form>
+
+                <ul class="menu-list">
+                    <li class="menu-item">
+                        <a href="{% url 'dashboard:home' %}" class="menu-link {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+                            <span class="material-symbols-rounded">dashboard</span>
+                            <span class="menu-label">Overview</span>
+                        </a>
+                    </li>
+                    <li class="menu-item">
+                        <a href="{% url 'dashboard:pipeline' %}" class="menu-link {% if request.resolver_match.url_name == 'pipeline' %}active{% endif %}">
+                            <span class="material-symbols-rounded">terminal</span>
+                            <span class="menu-label">Pipeline</span>
+                        </a>
+                    </li>
+                    <li class="menu-item">
+                        <a href="{% url 'dashboard:corpus' %}" class="menu-link {% if request.resolver_match.url_name == 'corpus' %}active{% endif %}">
+                            <span class="material-symbols-rounded">inventory_2</span>
+                            <span class="menu-label">Corpus</span>
+                        </a>
+                    </li>
+                    <li class="menu-item">
+                        <a href="{% url 'dashboard:themes' %}" class="menu-link {% if request.resolver_match.url_name == 'themes' %}active{% endif %}">
+                            <span class="material-symbols-rounded">account_tree</span>
+                            <span class="menu-label">Thematic Map</span>
+                        </a>
+                    </li>
+                    <li class="menu-item">
+                        <a href="{% url 'dashboard:revue' %}" class="menu-link {% if request.resolver_match.url_name == 'revue' %}active{% endif %}">
+                            <span class="material-symbols-rounded">description</span>
+                            <span class="menu-label">Narrative</span>
+                        </a>
+                    </li>
+                    <li class="menu-item">
+                        <a href="{% url 'dashboard:gaps' %}" class="menu-link {% if request.resolver_match.url_name == 'gaps' %}active{% endif %}">
+                            <span class="material-symbols-rounded">travel_explore</span>
+                            <span class="menu-label">Research Gaps</span>
+                        </a>
+                    </li>
+                    <li class="menu-item">
+                        <a href="{% url 'dashboard:citations' %}" class="menu-link {% if request.resolver_match.url_name == 'citations' %}active{% endif %}">
+                            <span class="material-symbols-rounded">verified_user</span>
+                            <span class="menu-label">Verification</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="sidebar-footer">
+                <button class="theme-toggle">
+                    <div class="theme-label">
+                        <span class="theme-icon material-symbols-rounded">dark_mode</span>
+                        <span class="theme-text">Dark Mode</span>
+                    </div>
+                    <div class="theme-toggle-track">
+                        <div class="theme-toggle-indicator"></div>
+                    </div>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Messages / Alerts -->
+            {% if messages %}
+            <div class="mb-8 space-y-3">
+                {% for message in messages %}
+                <div class="flex items-center space-x-3 px-4 py-3 rounded-xl border {% if message.tags == 'success' %}bg-green-500/10 border-green-500/20 text-green-400{% else %}bg-red-500/10 border-red-500/20 text-red-400{% endif %} text-sm">
+                    <span class="material-symbols-rounded text-lg">{% if message.tags == 'success' %}check_circle{% else %}error{% endif %}</span>
+                    <span>{{ message }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        const sidebarToggleBtns = document.querySelectorAll(".sidebar-toggle");
+        const sidebar = document.querySelector(".sidebar");
+        const searchForm = document.querySelector(".search-form");
+        const themeToggleBtn = document.querySelector(".theme-toggle");
+        const themeIcon = themeToggleBtn.querySelector(".theme-icon");
+
+        const updateThemeIcon = () => {
+            const isDark = document.body.classList.contains("dark-theme");
+            themeIcon.textContent = isDark ? "dark_mode" : "light_mode";
+            const themeText = themeToggleBtn.querySelector(".theme-text");
+            if (themeText) themeText.textContent = isDark ? "Dark Mode" : "Light Mode";
+        };
+
+        // Theme Initialization
+        const savedTheme = localStorage.getItem("theme") || "dark";
+        document.body.classList.toggle("dark-theme", savedTheme === "dark");
+        updateThemeIcon();
+
+        themeToggleBtn.addEventListener("click", () => {
+            const isDark = document.body.classList.toggle("dark-theme");
+            localStorage.setItem("theme", isDark ? "dark" : "light");
+            updateThemeIcon();
+        });
+
+        sidebarToggleBtns.forEach((btn) => {
+            btn.addEventListener("click", () => {
+                sidebar.classList.toggle("collapsed");
+            });
+        });
+
+        searchForm.addEventListener("click", () => {
+            if (sidebar.classList.contains("collapsed")) {
+                sidebar.classList.remove("collapsed");
+                searchForm.querySelector("input").focus();
+            }
+        });
+
+        // Auto-collapse on small screens
+        if (window.innerWidth <= 1024) sidebar.classList.add("collapsed");
+    </script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

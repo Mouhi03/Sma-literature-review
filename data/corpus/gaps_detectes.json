@@ -1,0 +1,92 @@
+{
+  "meta": {
+    "nb_gaps_total": 4,
+    "nb_themes": 2
+  },
+  "gaps_par_theme": [
+    {
+      "nom_theme": "Thème 1",
+      "gaps": [
+        {
+          "importance": "haute",
+          "theme_source": "Thème 1 : Évolution de la Durabilité",
+          "formulation_gap": "Intégration déficiente des externalités socio-politiques et de la stabilité territoriale dans l'évaluation quantitative des ODD",
+          "piste_recherche": "Concevoir des cadres d'aide à la décision multicritères (MCDA) intégrant des variables d'économie politique et de résolution de conflits armés basées sur les travaux historiques de Kyle.",
+          "justification": "Les indices ODD actuels de l'UE et de l'ONU privilégient les indicateurs technico-économiques et environnementaux quantifiables, omettant les dynamiques de déstabilisation géopolitique locale pourtant cruciales dans les pays en transition.",
+          "score_priorite": 88
+        }
+      ]
+    },
+    {
+      "nom_theme": "Thème 2",
+      "gaps": [
+        {
+          "importance": "critique",
+          "theme_source": "Thème 2 : Ingénierie Écologique",
+          "formulation_gap": "Absence de modèles de dynamique microbienne à long terme pour la biorémédiation par Trametes versicolor",
+          "piste_recherche": "Développer des modèles cinétiques couplés représentant la croissance fongique sous stress chimique et en conditions de compétition microbienne non stérile pour prédire la longévité des réacteurs.",
+          "justification": "Bien que l'efficacité à court terme ait été prouvée expérimentalement en mode séquentiel discontinu, aucun modèle prédictif ne décrit la dérive des populations microbiennes et le déclin d'activité du champignon à long terme.",
+          "score_priorite": 92
+        },
+        {
+          "importance": "haute",
+          "theme_source": "Thème 2 : Ingénierie Écologique",
+          "formulation_gap": "Manque de couplage thermodynamique-physicochimique pour la précipitation des métaux lourds sous alcalinité extrême",
+          "piste_recherche": "Modéliser la saturation ionique spécifique des complexes organo-métalliques sous fort pH (CaO/NaOH) en intégrant des correctifs de force ionique non idéaux basés sur l'approche de Davies.",
+          "justification": "Les modèles actuels de bilans de masse comme ADM1 se focalisent sur la matière organique sans modéliser la physicochimie complexe et la précipitation simultanée des cations métalliques co-déposés avec les boues de Kalundborg.",
+          "score_priorite": 85
+        },
+        {
+          "importance": "moyenne",
+          "theme_source": "Thème 2 : Ingénierie Écologique",
+          "formulation_gap": "Évaluation limitée des cycles biogéochimiques profonds sous couvert de broyage intensif d'oliveraies",
+          "piste_recherche": "Mener des campagnes expérimentales pluri-annuelles mesurant la conductivité hydraulique et la dynamique d'azote sous résidus de taille d'oliviers à ultra-haute densité.",
+          "justification": "Les lignes directrices actuelles de Taguas et al. se basent sur des indicateurs de surface à court terme, manquant de recul sur l'impact de l'accumulation de lignine en profondeur.",
+          "score_priorite": 74
+        }
+      ]
+    }
+  ],
+  "analyse_globale": {
+    "synthese_lacunes": "L'analyse globale révèle une fracture critique entre les modèles théoriques de développement durable et la mise en œuvre de technologies d'épuration ou agricoles réelles. Le principal verrou identifié réside dans la modélisation à long terme du comportement dynamique des écosystèmes artificiels.",
+    "recommandations": [
+      "Développer des modèles multi-échelles intégrant la physico-chimie des sols et la dynamique des populations fongiques.",
+      "Intégrer les variables socio-politiques de Kyle dans les algorithmes d'arbitrage multicritères des ODD.",
+      "Standardiser les protocoles de caractérisation microbiologique à long terme pour la biorémédiation mycologique."
+    ]
+  },
+  "tous_les_gaps_tries": [
+    {
+      "importance": "critique",
+      "theme_source": "Thème 2 : Ingénierie Écologique",
+      "formulation_gap": "Absence de modèles de dynamique microbienne à long terme pour la biorémédiation par Trametes versicolor",
+      "piste_recherche": "Développer des modèles cinétiques couplés représentant la croissance fongique sous stress chimique et en conditions de compétition microbienne non stérile pour prédire la longévité des réacteurs.",
+      "justification": "Bien que l'efficacité à court terme ait été prouvée expérimentalement en mode séquentiel discontinu, aucun modèle prédictif ne décrit la dérive des populations microbiennes et le déclin d'activité du champignon à long terme.",
+      "score_priorite": 92
+    },
+    {
+      "importance": "haute",
+      "theme_source": "Thème 1 : Évolution de la Durabilité",
+      "formulation_gap": "Intégration déficiente des externalités socio-politiques et de la stabilité territoriale dans l'évaluation quantitative des ODD",
+      "piste_recherche": "Concevoir des cadres d'aide à la décision multicritères (MCDA) intégrant des variables d'économie politique et de résolution de conflits armés basées sur les travaux historiques de Kyle.",
+      "justification": "Les indices ODD actuels de l'UE et de l'ONU privilégient les indicateurs technico-économiques et environnementaux quantifiables, omettant les dynamiques de déstabilisation géopolitique locale pourtant cruciales dans les pays en transition.",
+      "score_priorite": 88
+    },
+    {
+      "importance": "haute",
+      "theme_source": "Thème 2 : Ingénierie Écologique",
+      "formulation_gap": "Manque de couplage thermodynamique-physicochimique pour la précipitation des métaux lourds sous alcalinité extrême",
+      "piste_recherche": "Modéliser la saturation ionique spécifique des complexes organo-métalliques sous fort pH (CaO/NaOH) en intégrant des correctifs de force ionique non idéaux basés sur l'approche de Davies.",
+      "justification": "Les modèles actuels de bilans de masse comme ADM1 se focalisent sur la matière organique sans modéliser la physicochimie complexe et la précipitation simultanée des cations métalliques co-déposés avec les boues de Kalundborg.",
+      "score_priorite": 85
+    },
+    {
+      "importance": "moyenne",
+      "theme_source": "Thème 2 : Ingénierie Écologique",
+      "formulation_gap": "Évaluation limitée des cycles biogéochimiques profonds sous couvert de broyage intensif d'oliveraies",
+      "piste_recherche": "Mener des campagnes expérimentales pluri-annuelles mesurant la conductivité hydraulique et la dynamique d'azote sous résidus de taille d'oliviers à ultra-haute densité.",
+      "justification": "Les lignes directrices actuelles de Taguas et al. se basent sur des indicateurs de surface à court terme, manquant de recul sur l'impact de l'accumulation de lignine en profondeur.",
+      "score_priorite": 74
+    }
+  ]
+}

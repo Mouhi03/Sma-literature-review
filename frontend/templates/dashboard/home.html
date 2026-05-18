@@ -1,0 +1,339 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Overview — SMA OS{% endblock %}
+{% block extra_head %}
+<style>
+    .uiverse-card {
+      position: relative;
+      width: 260px;
+      height: 220px;
+      background-color: #000;
+      display: flex;
+      flex-direction: column;
+      justify-content: end;
+      padding: 24px;
+      gap: 10px;
+      border-radius: 16px;
+      cursor: pointer;
+      z-index: 1;
+    }
+
+    .uiverse-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      left: -6px;
+      margin: auto;
+      width: 272px;
+      height: 232px;
+      border-radius: 18px;
+      background: linear-gradient(-45deg, #e81cff 0%, #40c9ff 100% );
+      z-index: -10;
+      pointer-events: none;
+      transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .uiverse-card::after {
+      content: "";
+      z-index: -1;
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(-45deg, #fc00ff 0%, #00dbde 100% );
+      transform: translate3d(0, 0, 0) scale(0.95);
+      filter: blur(20px);
+    }
+
+    .uiverse-card .heading {
+      font-size: 32px;
+      text-transform: capitalize;
+      font-weight: 800;
+      color: white;
+      margin-bottom: 4px;
+    }
+
+    .uiverse-card p:not(.heading) {
+      font-size: 13px;
+      color: #ffffff;
+      margin: 0;
+      opacity: 0.9;
+    }
+
+    .uiverse-card p:last-child {
+      color: #00dbde;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .uiverse-card:hover::after {
+      filter: blur(30px);
+    }
+
+    .uiverse-card:hover::before {
+      transform: rotate(-90deg) scaleX(1.1) scaleY(0.9);
+    }
+</style>
+<!-- ApexCharts & BS Brain Assets -->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<link rel="stylesheet" href="https://unpkg.com/bs-brain@2.0.4/components/charts/chart-1/assets/css/chart-1.css">
+{% endblock %}
+
+{% block content %}
+<div class="space-y-10">
+    <!-- Hero Section -->
+    <section class="animate-fade-in">
+        <h1 class="text-4xl font-black tracking-tighter mb-2 text-indigo-500">MindTheGap</h1>
+        <p class="text-indigo-400 max-w-2xl text-lg font-medium leading-relaxed italic">"Propulsez votre recherche là où les autres se sont arrêtés"</p>
+    </section>
+
+    <!-- Metrics Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 animate-fade-in mb-16" style="animation-delay: 0.1s;">
+        <!-- Ingested -->
+        <div class="uiverse-card mx-auto">
+            <p class="heading">{{ nb_pdfs }}</p>
+            <p>Total Documents</p>
+            <p>Ingested</p>
+        </div>
+
+        <!-- Indexed -->
+        <div class="uiverse-card mx-auto">
+            <p class="heading">{{ nb_articles }}</p>
+            <p>Semantic Nodes</p>
+            <p>Indexed</p>
+        </div>
+
+        <!-- Thematic -->
+        <div class="uiverse-card mx-auto">
+            <p class="heading">{{ nb_themes }}</p>
+            <p>Scientific Clusters</p>
+            <p>Thematic</p>
+        </div>
+
+        <!-- Trust Score -->
+        <div class="uiverse-card mx-auto">
+            <p class="heading">{{ score_fiabilite }}%</p>
+            <p>Integrity Level</p>
+            <p>Trust Score</p>
+        </div>
+    </div>
+
+    <!-- Charts and Pipeline -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in" style="animation-delay: 0.2s;">
+        <!-- Temporal Publication Density (Bootstrap Brain / ApexCharts) -->
+        <div class="lg:col-span-2 bg-white rounded-2xl overflow-hidden border border-zinc-200 shadow-xl">
+            <div class="p-6 border-b border-zinc-100 flex items-center justify-between">
+                <div>
+                    <h5 class="text-lg font-bold text-zinc-900">Temporal Publication Density</h5>
+                    <p class="text-[10px] text-zinc-400 uppercase tracking-widest font-bold">Scientific Output Evolution</p>
+                </div>
+                <div>
+                    <select class="bg-zinc-50 border border-zinc-200 text-zinc-600 text-[10px] rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-indigo-500 outline-none">
+                        <option selected>Global Reservoir</option>
+                        <option>Last 5 Years</option>
+                        <option>High Impact only</option>
+                    </select>
+                </div>
+            </div>
+            <div class="p-4">
+                <div id="apex-publication-chart"></div>
+            </div>
+        </div>
+
+        <!-- Pipeline Status -->
+        <div class="glass rounded-2xl p-8">
+            <h3 class="font-semibold mb-6">Orchestration Progress</h3>
+            <div class="relative w-32 h-32 mx-auto mb-8">
+                <svg class="w-full h-full transform -rotate-90">
+                    <circle cx="64" cy="64" r="58" stroke="currentColor" stroke-width="8" fill="transparent" class="text-zinc-800"/>
+                    <circle cx="64" cy="64" r="58" stroke="currentColor" stroke-width="8" fill="transparent" stroke-dasharray="364.4" stroke-dashoffset="{{ dashoffset|default:"0" }}" class="text-indigo-500 transition-all duration-1000 ease-in-out"/>
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                    <span class="text-2xl font-bold">{{ progress_pct }}%</span>
+                    <span class="text-[10px] opacity-70 uppercase">Complete</span>
+                </div>
+            </div>
+            <div class="space-y-4">
+                {% for name, done in status.items %}
+                <div class="flex items-center justify-between text-xs">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-1.5 h-1.5 rounded-full {% if done %}bg-emerald-500{% else %}bg-zinc-700{% endif %}"></div>
+                        <span class="{% if not done %}opacity-60{% endif %}">Agent {{ name|title }}</span>
+                    </div>
+                    {% if done %}
+                    <i class="fas fa-check text-emerald-500"></i>
+                    {% else %}
+                    <i class="fas fa-spinner fa-spin text-zinc-700"></i>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            <a href="{% url 'dashboard:pipeline' %}" class="block mt-8 w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20 text-center rounded-xl text-xs font-semibold transition-all">
+                Manage Pipeline
+            </a>
+        </div>
+    </div>
+
+    <!-- Lower Section: Quality and Recent -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in" style="animation-delay: 0.3s;">
+        <!-- Quality Analysis -->
+        <div class="glass rounded-2xl p-8">
+            <h3 class="font-semibold mb-8">Content Extraction Fidelity</h3>
+            <div class="flex items-center space-x-12">
+                <div class="w-40 h-40">
+                    <canvas id="qualityChart"></canvas>
+                </div>
+                <div class="flex-1 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+                            <span class="text-sm opacity-80">High Confidence</span>
+                        </div>
+                        <span class="text-sm font-bold">{{ qualite_dist.élevé|default:0 }}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-2 h-2 rounded-full bg-amber-500"></div>
+                            <span class="text-sm opacity-80">Moderate</span>
+                        </div>
+                        <span class="text-sm font-bold">{{ qualite_dist.moyen|default:0 }}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-2 h-2 rounded-full bg-rose-500"></div>
+                            <span class="text-sm opacity-80">Low Fidelity</span>
+                        </div>
+                        <span class="text-sm font-bold">{{ qualite_dist.faible|default:0 }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity / News style -->
+        <div class="glass rounded-2xl p-8">
+            <h3 class="font-semibold mb-6">Latest System Insights</h3>
+            <div class="space-y-6">
+                <div class="flex space-x-4">
+                    <div class="w-px bg-zinc-800 self-stretch mt-2 mb-2 relative">
+                        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+                    </div>
+                    <div>
+                        <p class="text-sm">Thematic mapping completed with <span class="text-indigo-500">k={{ nb_themes }}</span> clusters.</p>
+                        <p class="text-[10px] opacity-60 mt-1 uppercase tracking-tighter">Cartographe Agent • 2m ago</p>
+                    </div>
+                </div>
+                <div class="flex space-x-4">
+                    <div class="w-px bg-zinc-800 self-stretch mt-2 mb-2 relative">
+                        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
+                    </div>
+                    <div>
+                        <p class="text-sm opacity-80">Detected <span class="opacity-100 font-semibold">{{ nb_gaps }} research gaps</span> in global literature corpus.</p>
+                        <p class="text-[10px] opacity-60 mt-1 uppercase tracking-tighter">Detecteur Agent • 15m ago</p>
+                    </div>
+                </div>
+                <div class="flex space-x-4">
+                    <div class="w-px bg-zinc-800 self-stretch mt-2 mb-2 relative">
+                        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
+                    </div>
+                    <div>
+                        <p class="text-sm opacity-80">Bibliography audit finalized. Integrity score at {{ score_fiabilite }}%.</p>
+                        <p class="text-[10px] opacity-60 mt-1 uppercase tracking-tighter">Citateur Agent • 1h ago</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Custom Chart Defaults
+    Chart.defaults.color = '#71717a';
+    Chart.defaults.font.family = 'Poppins';
+
+    // ApexCharts: Temporal Publication Density
+    const apexOptions = {
+        series: [{
+            name: 'Publications',
+            data: {{ year_values|default:"[]"|safe }}
+        }],
+        chart: {
+            type: 'area',
+            height: 350,
+            toolbar: { show: false },
+            zoom: { enabled: false },
+            fontFamily: 'Poppins',
+            foreColor: '#52525b', // Zinc-600 for white bg
+            background: '#ffffff'
+        },
+        dataLabels: { enabled: false },
+        stroke: {
+            curve: 'smooth',
+            width: 3,
+            colors: ['#695CFE']
+        },
+        fill: {
+            type: 'gradient',
+            gradient: {
+                shadeIntensity: 1,
+                opacityFrom: 0.6,
+                opacityTo: 0.05,
+                stops: [0, 90, 100],
+                colorStops: [
+                    { offset: 0, color: '#695CFE', opacity: 0.3 },
+                    { offset: 100, color: '#695CFE', opacity: 0.0 }
+                ]
+            }
+        },
+        grid: {
+            borderColor: '#f4f4f5', // Zinc-100
+            strokeDashArray: 4,
+            padding: { left: 20, right: 20 }
+        },
+        xaxis: {
+            categories: {{ year_labels|default:"[]"|safe }},
+            axisBorder: { show: false },
+            axisTicks: { show: false }
+        },
+        yaxis: {
+            tickAmount: 4,
+            labels: {
+                formatter: (val) => Math.floor(val)
+            }
+        },
+        tooltip: {
+            theme: 'light', // Light theme for white bg
+            x: { show: true },
+            marker: { show: false }
+        },
+        markers: {
+            size: 0,
+            hover: { size: 6, colors: ['#695CFE'] }
+        }
+    };
+
+    const chart = new ApexCharts(document.querySelector("#apex-publication-chart"), apexOptions);
+    chart.render();
+
+    const qualCtx = document.getElementById('qualityChart');
+    if (qualCtx) {
+        new Chart(qualCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['High', 'Mod', 'Low'],
+                datasets: [{
+                    data: [{{ qualite_dist.élevé|default:0 }}, {{ qualite_dist.moyen|default:0 }}, {{ qualite_dist.faible|default:0 }}],
+                    backgroundColor: ['#10b981', '#f59e0b', '#f43f5e'],
+                    borderWidth: 0,
+                    spacing: 8,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                cutout: '75%',
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+</script>
+{% endblock %}

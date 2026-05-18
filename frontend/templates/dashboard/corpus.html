@@ -1,0 +1,88 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Knowledge Base — SMA OS{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="flex items-center justify-between animate-fade-in">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight">Scientific Corpus</h1>
+            <p class="text-zinc-400 mt-1">Foundational knowledge graph containing {{ nb_articles }} processed manuscripts.</p>
+        </div>
+        <div class="flex space-x-3">
+            <div class="relative">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs"></i>
+                <input type="text" placeholder="Filter articles..." class="bg-zinc-900 border border-zinc-800 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 w-64">
+            </div>
+            <button class="bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 px-4 py-2 rounded-lg text-sm hover:bg-indigo-600 hover:text-white transition-colors">
+                <i class="fas fa-filter mr-2"></i>Sort
+            </button>
+        </div>
+    </div>
+
+    {% if articles %}
+    <div class="bg-indigo-100 border border-indigo-300 rounded-2xl overflow-hidden animate-fade-in shadow-lg shadow-indigo-500/20" style="animation-delay: 0.1s;">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-indigo-300 bg-indigo-200/50">
+                        <th class="px-6 py-4 text-[11px] font-black text-black uppercase tracking-widest">Document / ID</th>
+                        <th class="px-6 py-4 text-[11px] font-black text-black uppercase tracking-widest">Authorship</th>
+                        <th class="px-6 py-4 text-[11px] font-black text-black uppercase tracking-widest">Meta</th>
+                        <th class="px-6 py-4 text-[11px] font-black text-black uppercase tracking-widest">Confidence</th>
+                        <th class="px-6 py-4 text-[11px] font-black text-black uppercase tracking-widest text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-indigo-300">
+                    {% for a in articles %}
+                    <tr class="hover:bg-indigo-200/50 transition-colors cursor-pointer group" onclick="window.location='{% url 'dashboard:article_detail' a.doc_id %}'">
+                        <td class="px-6 py-5">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-8 h-8 rounded bg-indigo-500 text-white group-hover:bg-indigo-600 transition-colors flex items-center justify-center">
+                                    <i class="fas fa-file-lines text-xs"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-black text-black line-clamp-1">{{ a.titre }}</p>
+                                    <p class="text-[10px] text-zinc-800 font-mono font-bold mt-0.5">{{ a.doc_id|truncatechars:12 }}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-5">
+                            <p class="text-sm font-bold text-zinc-900">{{ a.auteurs|join:", "|truncatechars:40 }}</p>
+                        </td>
+                        <td class="px-6 py-5">
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-0.5 rounded bg-indigo-200 text-black text-[10px] font-black border border-indigo-300 uppercase">{{ a.annee }}</span>
+                                <span class="px-2 py-0.5 rounded bg-indigo-200 text-black text-[10px] font-black border border-indigo-300 uppercase">{{ a.claim_type|truncatechars:10 }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-5">
+                            <div class="flex items-center space-x-3">
+                                <div class="flex-1 h-2 bg-indigo-200 rounded-full max-w-[60px] overflow-hidden border border-indigo-300">
+                                    <div class="h-full {% if a.qualite_niveau == 'élevé' %}bg-emerald-500{% elif a.qualite_niveau == 'moyen' %}bg-amber-500{% else %}bg-rose-500{% endif %}" style="width: {{ a.qualite_score }}%"></div>
+                                </div>
+                                <span class="text-xs font-mono font-black text-black">{{ a.qualite_score }}%</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-5 text-right">
+                            <button class="w-8 h-8 rounded-lg border border-indigo-300 bg-white flex items-center justify-center text-black hover:bg-indigo-50 transition-all shadow-sm">
+                                <i class="fas fa-external-link-alt text-[10px]"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="glass rounded-2xl p-20 flex flex-col items-center justify-center text-center animate-fade-in">
+        <div class="w-16 h-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center mb-6 text-indigo-500">
+            <i class="fas fa-ghost text-2xl"></i>
+        </div>
+        <a href="{% url 'dashboard:upload' %}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold transition-all">
+            Ingest First Document
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

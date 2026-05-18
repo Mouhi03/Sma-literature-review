@@ -1,0 +1,129 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Research Gaps — SMA OS{% endblock %}
+{% block extra_head %}
+<style>
+    /* Force high-contrast dark text inside the white glassmorphic gaps cards */
+    .gap-card, .gap-card * {
+        color: #111111 !important;
+    }
+    .gap-card h3 {
+        color: #000000 !important;
+    }
+    .gap-card h4 {
+        color: #3f3f46 !important;
+    }
+    .gap-card span {
+        color: #52525b !important;
+    }
+    .gap-card span.px-2 {
+        color: #ef4444 !important; /* Keep the beautiful rose color for Critical/High priority badge */
+        background-color: rgba(239, 68, 68, 0.1) !important;
+        border-color: rgba(239, 68, 68, 0.2) !important;
+    }
+    .gap-card button {
+        color: #4f46e5 !important; /* Keep the indigo button color */
+    }
+    .gap-card button:hover {
+        color: #4338ca !important;
+    }
+    .gap-card div.bg-zinc-800, .gap-card div.bg-zinc-700 {
+        background-color: #e2e8f0 !important;
+        border-color: #cbd5e1 !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-8 animate-fade-in">
+    <header class="flex items-end justify-between">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight">Research Lacunae</h1>
+            <p class="text-zinc-400 mt-1">Algorithmic detection of theoretical, methodological, and empirical voids.</p>
+        </div>
+        <div class="flex items-center space-x-4 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2">
+            <div class="flex flex-col">
+                <span class="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">Total Gaps</span>
+                <span class="text-lg font-bold text-indigo-400">{{ meta.nb_gaps_total }}</span>
+            </div>
+            <div class="w-px h-8 bg-zinc-800"></div>
+            <div class="flex flex-col">
+                <span class="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">Priority Gaps</span>
+                <span class="text-lg font-bold text-rose-500">{{ gaps|length }}</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <!-- Filter Sidebar -->
+        <div class="lg:col-span-1 space-y-6">
+            <div class="glass p-6 rounded-2xl">
+                <h3 class="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6">Taxonomy Filter</h3>
+                <div class="space-y-3">
+                    <button class="w-full text-left px-4 py-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-bold">All Categories</button>
+                    <button class="w-full text-left px-4 py-2 rounded-lg text-indigo-400/70 hover:bg-indigo-500/10 hover:text-indigo-300 text-xs font-bold transition-all">Methodological</button>
+                    <button class="w-full text-left px-4 py-2 rounded-lg text-indigo-400/70 hover:bg-indigo-500/10 hover:text-indigo-300 text-xs font-bold transition-all">Thematic</button>
+                    <button class="w-full text-left px-4 py-2 rounded-lg text-indigo-400/70 hover:bg-indigo-500/10 hover:text-indigo-300 text-xs font-bold transition-all">Population Scarcity</button>
+                </div>
+            </div>
+
+            <div class="glass p-6 rounded-2xl bg-indigo-600/5 border-indigo-500/10">
+                <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4">Agent Strategy</h3>
+                <p class="text-[11px] text-zinc-400 leading-relaxed italic">"Utilizing Chain-of-Thought (CoT) reasoning to cross-reference thematic clusters against global evidence levels."</p>
+            </div>
+        </div>
+
+        <!-- Gaps List -->
+        <div class="lg:col-span-3 space-y-6">
+            {% for gap in gaps %}
+            <div class="gap-card bg-white/90 backdrop-blur-md rounded-3xl p-8 border border-white/20 hover:bg-white transition-all shadow-xl shadow-indigo-500/5">
+                <div class="flex items-start justify-between mb-6">
+                    <div class="flex items-center space-x-3">
+                        <span class="px-2 py-1 rounded bg-rose-500/10 text-rose-500 text-[10px] font-bold border border-rose-500/20 uppercase tracking-tighter">
+                            {{ gap.importance|default:"Critical" }}
+                        </span>
+                        <span class="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Detected in {{ gap.theme_source|default:"Global Corpus" }}</span>
+                    </div>
+                    <div class="flex -space-x-1">
+                        <div class="w-6 h-6 rounded-full border-2 border-[#09090b] bg-zinc-800"></div>
+                        <div class="w-6 h-6 rounded-full border-2 border-[#09090b] bg-zinc-700"></div>
+                    </div>
+                </div>
+
+                <h3 class="text-xl font-bold mb-4 text-zinc-950 leading-tight">{% if gap.formulation_gap %}{{ gap.formulation_gap }}{% else %}{{ gap.formulation }}{% endif %}</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+                    <div class="space-y-3">
+                        <h4 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center">
+                            <i class="fas fa-microscope mr-2 text-indigo-500"></i>Research Opportunity
+                        </h4>
+                        <p class="text-sm text-zinc-800 font-medium leading-relaxed">{{ gap.piste_recherche|default:"Detailed synthesis ongoing..." }}</p>
+                    </div>
+                    <div class="space-y-3">
+                        <h4 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center">
+                            <i class="fas fa-exclamation-triangle mr-2 text-amber-500"></i>Evidence Scarcity
+                        </h4>
+                        <p class="text-sm text-zinc-700 leading-relaxed">{{ gap.justification|default:"Identified through negative RAG search in primary dataset." }}</p>
+                    </div>
+                </div>
+
+                <div class="mt-8 pt-6 border-t border-zinc-800/50 flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <span class="text-[10px] font-mono text-zinc-600">SCORE: {{ gap.score_priorite|default:85 }}/100</span>
+                        <div class="w-20 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                            <div class="h-full bg-rose-500" style="width: {{ gap.score_priorite|default:85 }}%"></div>
+                        </div>
+                    </div>
+                    <button class="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors">Generate Research Proposal <i class="fas fa-arrow-right ml-2"></i></button>
+                </div>
+            </div>
+            {% empty %}
+            <div class="glass rounded-2xl p-20 flex flex-col items-center justify-center text-center">
+                <i class="fas fa-check-circle text-4xl text-emerald-500 mb-6"></i>
+                <h3 class="text-xl font-bold">No High-Priority Gaps Detected</h3>
+                <p class="text-zinc-500 max-w-sm mt-2">The current corpus appears highly saturated across the mapped thematic dimensions.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

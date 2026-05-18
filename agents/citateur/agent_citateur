@@ -1,0 +1,1113 @@
+"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║            AGENT CITATEUR — SMA Revue de Littérature                       ║
+║                                                                              ║
+║  Reçoit   : revue_litterature.json  (Agent Narrateur)                       ║
+║             revue_litterature.md    (texte de la revue)                     ║
+║             corpus_complet.json     (Agent Curateur)                         ║
+║             gaps_detectes.json      (Agent Détecteur)                        ║
+║             AgentIndexeur           (recherche sémantique)                   ║
+║                                                                              ║
+║  Ce que fait cet agent :                                                     ║
+║    1. Extraire tous les claims et citations du texte de la revue            ║
+║    2. Vérifier chaque citation [Auteur, Année] → doc_id dans le corpus      ║
+║    3. Vérifier chaque claim par recherche sémantique dans les chunks        ║
+║    4. Détecter les hallucinations (claims sans source traçable)             ║
+║    5. Auditer la bibliographie (cohérence, manques, doublons)               ║
+║    6. Produire un rapport de vérification complet                           ║
+║                                                                              ║
+║  Produit  : rapport_citations.json + rapport_citations.md                   ║
+║             revue_corrigee.md  (revue avec annotations de vérification)     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+"""
+
+import os
+import json
+import re
+import time
+from pathlib import Path
+from collections import defaultdict, Counter
+
+from groq import Groq
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Seuil de similarité cosine en dessous duquel un claim est considéré
+# comme potentiellement halluciné (pas de chunk suffisamment proche)
+SEUIL_SIMILARITE_CLAIM    = 0.35
+
+# Seuil au dessus duquel on considère qu'un chunk confirme un claim
+SEUIL_CONFIRMATION        = 0.55
+
+# Nombre de chunks récupérés pour vérifier chaque claim
+N_CHUNKS_VERIFICATION     = 5
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  1. EXTRACTEUR DE CLAIMS ET CITATIONS
+# ═════════════════════════════════════════════════════════════════════════════
+
+class ExtracteurClaims:
+    """
+    Extrait du texte de la revue :
+      - Les citations explicites [Auteur, Année] ou [Auteur et al., Année]
+      - Les claims (affirmations factuelles associées à une citation)
+      - Les phrases sans citation (potentiellement non sourcées)
+    """
+
+    # Pattern de citation académique
+    # Capture : [Smith, 2020] [Smith & Jones, 2019] [Smith et al., 2021]
+    PATTERN_CITATION = re.compile(
+        r'\[([A-ZÀ-Ÿa-zà-ÿ\s\-\']+(?:\s*(?:&|et\s+al\.?|and)\s*'
+        r'[A-ZÀ-Ÿa-zà-ÿ\s\-\']*)?)\s*,\s*((?:19|20)\d{2}[a-z]?)\]'
+    )
+
+    def extraire_claims(self, texte_revue: str) -> list:
+        """
+        Découpe la revue en phrases et pour chacune :
+        - identifie les citations présentes
+        - extrait le claim (phrase sans les balises de citation)
+        - marque si la phrase a au moins une citation
+        """
+        # Découpe en phrases (point + majuscule ou saut de ligne)
+        phrases = re.split(r'(?<=[.!?])\s+(?=[A-ZÀ-Ÿ«"])', texte_revue)
+
+        claims = []
+        for i, phrase in enumerate(phrases):
+            phrase = phrase.strip()
+
+            # Ignore les lignes trop courtes (titres, puces vides)
+            if len(phrase) < 40:
+                continue
+
+            # Ignore les lignes de bibliographie
+            if phrase.startswith("- ") and "(" in phrase and ")" in phrase:
+                continue
+
+            # Extraction des citations dans la phrase
+            citations_trouvees = self.PATTERN_CITATION.findall(phrase)
+
+            # Texte du claim sans les balises de citation
+            claim_pur = self.PATTERN_CITATION.sub("", phrase).strip()
+            claim_pur = re.sub(r'\s{2,}', ' ', claim_pur)
+
+            if len(claim_pur) < 30:
+                continue
+
+            claims.append({
+                "claim_id":       f"claim_{i:04d}",
+                "phrase_originale": phrase,
+                "claim_pur":      claim_pur,
+                "citations_brutes": [
+                    {"auteur": c[0].strip(), "annee": c[1].strip()}
+                    for c in citations_trouvees
+                ],
+                "a_citation":     len(citations_trouvees) > 0,
+                "section":        self._detecter_section(phrase, i)
+            })
+
+        return claims
+
+    def _detecter_section(self, phrase: str, index: int) -> str:
+        """Heuristique simple pour deviner la section d'une phrase."""
+        phrase_lower = phrase.lower()
+        if any(k in phrase_lower for k in ["introduc", "contexte général"]):
+            return "introduction"
+        if any(k in phrase_lower for k in ["méthod", "approch", "technique"]):
+            return "methodologie"
+        if any(k in phrase_lower for k in ["débat", "controvers", "tension", "limite"]):
+            return "debats"
+        if any(k in phrase_lower for k in ["conclus", "synthès", "recommand"]):
+            return "conclusion"
+        if any(k in phrase_lower for k in ["état actuel", "récemment", "aujourd'hui"]):
+            return "etat_actuel"
+        return "corps"
+
+    def extraire_citations_bibliographie(self, texte_revue: str) -> list:
+        """
+        Extrait les entrées de bibliographie du texte de la revue.
+        Format attendu : - Auteur(s) (Année). *Titre*. Journal. doi
+        """
+        refs = []
+        lignes = texte_revue.split("\n")
+        in_references = False
+
+        for ligne in lignes:
+            if "## Références" in ligne or "## References" in ligne:
+                in_references = True
+                continue
+            if in_references and ligne.startswith("##"):
+                break
+            if in_references and ligne.startswith("- "):
+                refs.append(ligne[2:].strip())
+
+        return refs
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  2. RÉSOLVEUR DE CITATIONS
+# ═════════════════════════════════════════════════════════════════════════════
+
+class ResolveurCitations:
+    """
+    Fait correspondre les citations [Auteur, Année] trouvées dans le texte
+    aux articles réels du corpus (via doc_id).
+
+    Utilise plusieurs stratégies de matching :
+      1. Correspondance exacte nom + année
+      2. Correspondance partielle (nom de famille seulement)
+      3. Correspondance année seule (dernier recours)
+    """
+
+    def __init__(self, corpus: list):
+        self.corpus = corpus
+        # Index multi-clé pour le matching rapide
+        self._construire_index()
+
+    def _construire_index(self):
+        """Construit plusieurs index pour le matching des citations."""
+        # Index exact : "smith2020" → [doc]
+        self.index_exact    = defaultdict(list)
+        # Index partiel : "smith" → [doc]
+        self.index_partiel  = defaultdict(list)
+        # Index année : 2020 → [doc]
+        self.index_annee    = defaultdict(list)
+
+        for doc in self.corpus:
+            annee   = str(doc.get("annee") or "")
+            auteurs = doc.get("auteurs") or []
+
+            for auteur in auteurs:
+                # Nom de famille (dernier mot de la chaîne)
+                parties = str(auteur).strip().split()
+                if not parties:
+                    continue
+                nom_famille = parties[-1].lower()
+                cle_exacte  = f"{nom_famille}{annee}"
+
+                self.index_exact[cle_exacte].append(doc)
+                self.index_partiel[nom_famille].append(doc)
+
+            if annee:
+                self.index_annee[annee].append(doc)
+
+    def resoudre(self, auteur_cite: str, annee_citee: str) -> dict:
+        """
+        Tente de résoudre une citation [Auteur, Année] vers un doc du corpus.
+
+        Retourne un dict avec :
+          - doc_id (si trouvé)
+          - titre, auteurs, annee
+          - statut : "resolu" | "partiel" | "non_trouve"
+          - confiance : 1.0 | 0.7 | 0.3
+        """
+        # Nettoyage
+        auteur_clean = re.sub(r'\bet\s+al\.?\b', '', auteur_cite, flags=re.IGNORECASE)
+        auteur_clean = re.sub(r'[&,]', ' ', auteur_clean).strip().lower()
+        mots_auteur  = [m for m in auteur_clean.split() if len(m) > 2]
+
+        # ── Stratégie 1 : correspondance exacte (nom + année) ────────────
+        for mot in mots_auteur:
+            cle = f"{mot}{annee_citee}"
+            if cle in self.index_exact:
+                docs = self.index_exact[cle]
+                if docs:
+                    return self._formater_resultat(docs[0], "resolu", 1.0)
+
+        # ── Stratégie 2 : correspondance partielle (nom seul) ─────────────
+        candidats_nom = []
+        for mot in mots_auteur:
+            if mot in self.index_partiel:
+                candidats_nom.extend(self.index_partiel[mot])
+
+        if candidats_nom:
+            # Filtrer par année si possible
+            candidats_annee = [
+                d for d in candidats_nom
+                if str(d.get("annee", "")) == annee_citee
+            ]
+            if candidats_annee:
+                return self._formater_resultat(candidats_annee[0], "partiel", 0.75)
+            # Sans filtre année
+            return self._formater_resultat(candidats_nom[0], "partiel", 0.5)
+
+        # ── Stratégie 3 : année seule ─────────────────────────────────────
+        if annee_citee in self.index_annee:
+            docs = self.index_annee[annee_citee]
+            if len(docs) == 1:
+                return self._formater_resultat(docs[0], "partiel", 0.3)
+
+        return {
+            "doc_id":    None,
+            "titre":     None,
+            "auteurs":   [],
+            "annee":     annee_citee,
+            "statut":    "non_trouve",
+            "confiance": 0.0,
+            "auteur_cite": auteur_cite
+        }
+
+    def _formater_resultat(self, doc: dict, statut: str, confiance: float) -> dict:
+        return {
+            "doc_id":    doc.get("doc_id", ""),
+            "titre":     doc.get("titre", ""),
+            "auteurs":   doc.get("auteurs", []),
+            "annee":     doc.get("annee"),
+            "doi":       doc.get("doi"),
+            "statut":    statut,
+            "confiance": confiance
+        }
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  3. VÉRIFICATEUR DE CLAIMS PAR RAG
+# ═════════════════════════════════════════════════════════════════════════════
+
+class VerificateurClaimsRAG:
+    """
+    Vérifie chaque claim par recherche sémantique dans ChromaDB.
+
+    Pour chaque claim :
+      1. Recherche les N chunks les plus similaires
+      2. Si score_sim > SEUIL_CONFIRMATION → claim confirmé
+      3. Si score_sim entre SEUIL_SIMILARITE et SEUIL_CONFIRMATION → incertain
+      4. Si score_sim < SEUIL_SIMILARITE → potentielle hallucination
+    """
+
+    def __init__(self, indexeur):
+        self.indexeur = indexeur
+
+    def verifier_claim(self, claim: dict) -> dict:
+        """
+        Vérifie un claim par recherche sémantique.
+        Retourne le statut de vérification et les sources trouvées.
+        """
+        texte_claim = claim["claim_pur"]
+
+        # Recherche sémantique dans tous les chunks
+        chunks_proches = self.indexeur.rechercher(
+            requete     = texte_claim,
+            n_resultats = N_CHUNKS_VERIFICATION
+        )
+
+        if not chunks_proches:
+            return self._resultat_non_verifie(claim, "indexeur_vide")
+
+        meilleur_score = chunks_proches[0]["score_sim"]
+        meilleur_chunk = chunks_proches[0]
+
+        # ── Statut selon le score ─────────────────────────────────────────
+        if meilleur_score >= SEUIL_CONFIRMATION:
+            statut_rag = "confirme"
+        elif meilleur_score >= SEUIL_SIMILARITE_CLAIM:
+            statut_rag = "incertain"
+        else:
+            statut_rag = "non_supporte"
+
+        # Sources potentielles (tous chunks au dessus du seuil bas)
+        sources = [
+            {
+                "doc_id":       c["doc_id"],
+                "titre":        c.get("titre", ""),
+                "section":      c.get("section_nom", ""),
+                "score_sim":    c["score_sim"],
+                "extrait":      c["texte"][:200]
+            }
+            for c in chunks_proches
+            if c["score_sim"] >= SEUIL_SIMILARITE_CLAIM
+        ]
+
+        return {
+            "claim_id":         claim["claim_id"],
+            "statut_rag":       statut_rag,
+            "score_max":        round(meilleur_score, 4),
+            "sources_proches":  sources,
+            "doc_id_confirme":  meilleur_chunk["doc_id"] if statut_rag == "confirme" else None,
+            "est_hallucination": statut_rag == "non_supporte" and not claim["a_citation"]
+        }
+
+    def _resultat_non_verifie(self, claim: dict, raison: str) -> dict:
+        return {
+            "claim_id":         claim["claim_id"],
+            "statut_rag":       "non_verifie",
+            "score_max":        0.0,
+            "sources_proches":  [],
+            "doc_id_confirme":  None,
+            "est_hallucination": False,
+            "raison":           raison
+        }
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  4. VÉRIFICATEUR LLM (validation croisée sémantique)
+# ═════════════════════════════════════════════════════════════════════════════
+
+class VerificateurLLM:
+    """
+    Pour les claims marqués "incertains" par le RAG,
+    demande au LLM de vérifier si le chunk source confirme réellement le claim.
+
+    Évite les faux positifs : un chunk peut être proche sémantiquement
+    sans confirmer le claim spécifique.
+    """
+
+    def __init__(self):
+        self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        self.model  = "llama-3.3-70b-versatile"
+
+    def verifier_claim_vs_source(self, claim: str,
+                                  extrait_source: str,
+                                  titre_source: str) -> dict:
+        """
+        Demande au LLM : "Ce passage source confirme-t-il ce claim ?"
+        Retourne : verdict + justification + confiance.
+        """
+        prompt = f"""Tu es un expert en vérification de citations scientifiques.
+
+CLAIM À VÉRIFIER :
+"{claim}"
+
+SOURCE POTENTIELLE (extrait de l'article "{titre_source}") :
+"{extrait_source}"
+
+TÂCHE :
+Détermine si la source confirme, contredit, ou est non pertinente pour le claim.
+
+Raisonne en 2 étapes :
+1. Le claim fait-il une affirmation précise ? Laquelle ?
+2. La source contient-elle une information qui confirme ou infirme cette affirmation ?
+
+Réponds UNIQUEMENT avec un JSON valide :
+
+{{
+  "raisonnement": "ton analyse étape par étape...",
+  "verdict": "confirme | contredit | non_pertinent | partiellement",
+  "confiance": 0.9,
+  "explication": "En une phrase : pourquoi ce verdict ?"
+}}"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=400
+            )
+            raw   = response.choices[0].message.content.strip()
+            match = re.search(r'\{.*\}', raw, re.DOTALL)
+            if match:
+                return json.loads(match.group(0))
+        except Exception as e:
+            print(f"  ⚠  LLM vérification échouée : {e}")
+
+        return {
+            "verdict":     "non_verifie",
+            "confiance":   0.0,
+            "explication": "Vérification LLM échouée.",
+            "raisonnement":""
+        }
+
+    def detecter_hallucination_llm(self, claim: str,
+                                    corpus_resume: str) -> dict:
+        """
+        Pour les claims sans source RAG, demande au LLM si
+        l'affirmation est plausible ou inventée.
+        """
+        prompt = f"""Tu es un expert en détection d'hallucinations dans les revues de littérature.
+
+CLAIM SANS SOURCE IDENTIFIÉE :
+"{claim}"
+
+RÉSUMÉ DU CORPUS DISPONIBLE :
+{corpus_resume[:1500]}
+
+TÂCHE :
+Ce claim est-il :
+1. Plausible et probable dans ce domaine (pourrait exister dans le corpus)
+2. Générique et acceptable sans citation spécifique
+3. Factuel précis nécessitant une source (chiffre, date, résultat)
+4. Potentiellement halluciné (affirmation précise sans source trouvable)
+
+Réponds UNIQUEMENT avec un JSON valide :
+
+{{
+  "categorie":        "plausible | generique | necessite_source | hallucination",
+  "necessite_citation": true,
+  "risque_hallucination": "faible | moyen | eleve",
+  "explication":      "En 1-2 phrases : pourquoi ce verdict."
+}}"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=300
+            )
+            raw   = response.choices[0].message.content.strip()
+            match = re.search(r'\{.*\}', raw, re.DOTALL)
+            if match:
+                return json.loads(match.group(0))
+        except Exception as e:
+            print(f"  ⚠  LLM hallucination check échoué : {e}")
+
+        return {
+            "categorie":            "non_verifie",
+            "necessite_citation":   True,
+            "risque_hallucination": "moyen",
+            "explication":          "Vérification LLM échouée."
+        }
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  5. AUDITEUR DE BIBLIOGRAPHIE
+# ═════════════════════════════════════════════════════════════════════════════
+
+class AuditeurBibliographie:
+    """
+    Vérifie la cohérence globale de la bibliographie :
+      - Articles cités dans le texte mais absents de la bibliographie
+      - Articles dans la bibliographie mais jamais cités dans le texte
+      - Doublons dans la bibliographie
+      - Articles du corpus non cités du tout
+      - Cohérence des métadonnées (titre, année, auteurs)
+    """
+
+    def __init__(self, corpus: list):
+        self.corpus    = corpus
+        self.index_corpus = {
+            doc["doc_id"]: doc for doc in corpus if doc.get("doc_id")
+        }
+
+    def auditer(self, citations_texte: list,
+                citations_bibliographie: list,
+                registre_narrateur: list) -> dict:
+        """
+        citations_texte          : toutes les citations résolues du texte
+        citations_bibliographie  : entrées brutes de la section Références
+        registre_narrateur       : registre doc_id de l'Agent Narrateur
+        """
+
+        # ── Doc IDs cités dans le texte ───────────────────────────────────
+        doc_ids_cites = set(
+            c["resolution"]["doc_id"]
+            for c in citations_texte
+            if c.get("resolution", {}).get("doc_id")
+        )
+
+        # ── Doc IDs dans le registre du Narrateur ─────────────────────────
+        doc_ids_narrateur = set(
+            r["doc_id"] for r in registre_narrateur if r.get("doc_id")
+        )
+
+        # ── Tous les doc IDs du corpus ─────────────────────────────────────
+        doc_ids_corpus = set(self.index_corpus.keys())
+
+        # ── Articles cités mais non dans le corpus ─────────────────────────
+        fantomes = [
+            c for c in citations_texte
+            if c.get("resolution", {}).get("statut") == "non_trouve"
+        ]
+
+        # ── Articles du corpus jamais cités ───────────────────────────────
+        non_cites = [
+            {
+                "doc_id": doc_id,
+                "titre":  self.index_corpus[doc_id].get("titre", ""),
+                "annee":  self.index_corpus[doc_id].get("annee")
+            }
+            for doc_id in doc_ids_corpus
+            if doc_id not in doc_ids_cites
+        ]
+
+        # ── Doublons dans les citations du texte ───────────────────────────
+        doc_id_counts = Counter(
+            c["resolution"]["doc_id"]
+            for c in citations_texte
+            if c.get("resolution", {}).get("doc_id")
+        )
+        surexploites = [
+            {"doc_id": did, "nb_citations": nb,
+             "titre": self.index_corpus.get(did, {}).get("titre", "")}
+            for did, nb in doc_id_counts.items() if nb > 5
+        ]
+
+        # ── Métadonnées incohérentes ───────────────────────────────────────
+        incoherences = []
+        for c in citations_texte:
+            res = c.get("resolution", {})
+            if res.get("statut") in ("resolu", "partiel") and res.get("doc_id"):
+                doc      = self.index_corpus.get(res["doc_id"], {})
+                annee_c  = c.get("annee_citee", "")
+                annee_d  = str(doc.get("annee") or "")
+                if annee_c and annee_d and annee_c != annee_d:
+                    incoherences.append({
+                        "citation":       c.get("citation_brute", ""),
+                        "annee_citee":    annee_c,
+                        "annee_reelle":   annee_d,
+                        "titre":          doc.get("titre", ""),
+                        "type":           "annee_incorrecte"
+                    })
+
+        # ── Taux de couverture ────────────────────────────────────────────
+        nb_corpus   = len(doc_ids_corpus)
+        nb_cites    = len(doc_ids_cites)
+        taux        = round(nb_cites / nb_corpus * 100, 1) if nb_corpus > 0 else 0
+
+        return {
+            "taux_couverture_corpus": taux,
+            "nb_articles_corpus":    nb_corpus,
+            "nb_articles_cites":     nb_cites,
+            "nb_articles_non_cites": len(non_cites),
+            "articles_non_cites":    non_cites,
+            "citations_fantomes":    fantomes,
+            "nb_citations_fantomes": len(fantomes),
+            "articles_surexploites": surexploites,
+            "incoherences_metadata": incoherences,
+            "nb_refs_bibliographie": len(citations_bibliographie),
+            "verdict_bibliographie": (
+                "coherente" if len(fantomes) == 0 and len(incoherences) == 0
+                else "problemes_detectes"
+            )
+        }
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  6. AGENT CITATEUR — ORCHESTRATEUR
+# ═════════════════════════════════════════════════════════════════════════════
+
+class AgentCitateur:
+    """
+    Pipeline complet de vérification :
+      1. Chargement de la revue et du corpus
+      2. Extraction des claims et citations
+      3. Résolution des citations [Auteur, Année] → doc_id
+      4. Vérification RAG de chaque claim
+      5. Vérification LLM croisée pour les cas incertains
+      6. Audit de la bibliographie
+      7. Génération du rapport et de la revue annotée
+    """
+
+    # Limite le nombre de vérifications LLM (coûteux en tokens)
+    MAX_VERIFICATIONS_LLM = 20
+
+    def __init__(self):
+        self.client             = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        self.model              = "llama-3.3-70b-versatile"
+        self.extracteur         = ExtracteurClaims()
+        self.verificateur_llm   = VerificateurLLM()
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  CHARGEMENTS
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _charger(self, chemin_revue_json: str,
+                  chemin_revue_md: str,
+                  chemin_corpus: str) -> tuple:
+
+        with open(chemin_corpus, "r", encoding="utf-8") as f:
+            corpus = json.load(f)
+
+        revue_json = {}
+        if Path(chemin_revue_json).exists():
+            with open(chemin_revue_json, "r", encoding="utf-8") as f:
+                revue_json = json.load(f)
+
+        texte_revue = ""
+        if Path(chemin_revue_md).exists():
+            with open(chemin_revue_md, "r", encoding="utf-8") as f:
+                texte_revue = f.read()
+
+        return corpus, revue_json, texte_revue
+
+    def _construire_resume_corpus(self, corpus: list) -> str:
+        """Résumé compact du corpus pour les vérifications LLM."""
+        lignes = []
+        for doc in corpus[:15]:
+            lignes.append(
+                f"- {doc.get('titre','')[:70]} "
+                f"({doc.get('annee','?')}) : "
+                f"{doc.get('contribution_principale','')[:100]}"
+            )
+        return "\n".join(lignes)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  ÉTAPE 1 : EXTRACTION ET RÉSOLUTION DES CITATIONS
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _extraire_et_resoudre_citations(self, texte_revue: str,
+                                         corpus: list) -> tuple:
+        """
+        Extrait tous les claims et résout chaque citation [Auteur, Année]
+        vers un doc_id du corpus.
+        Retourne (claims, citations_resolues, stats_resolution).
+        """
+        print("  → Extraction des claims et citations...")
+        claims = self.extracteur.extraire_claims(texte_revue)
+        print(f"    {len(claims)} claims extraits")
+
+        resolveur         = ResolveurCitations(corpus)
+        citations_resolues = []
+        stats             = {"resolu": 0, "partiel": 0, "non_trouve": 0}
+
+        for claim in claims:
+            for cit in claim["citations_brutes"]:
+                resolution = resolveur.resoudre(cit["auteur"], cit["annee"])
+
+                citations_resolues.append({
+                    "claim_id":      claim["claim_id"],
+                    "citation_brute":f"[{cit['auteur']}, {cit['annee']}]",
+                    "auteur_cite":   cit["auteur"],
+                    "annee_citee":   cit["annee"],
+                    "resolution":    resolution
+                })
+
+                statut = resolution["statut"]
+                if statut in stats:
+                    stats[statut] += 1
+
+        print(f"    Résolution : {stats['resolu']} exactes | "
+              f"{stats['partiel']} partielles | "
+              f"{stats['non_trouve']} non trouvées")
+
+        return claims, citations_resolues, stats
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  ÉTAPE 2 : VÉRIFICATION RAG DES CLAIMS
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _verifier_claims_rag(self, claims: list,
+                              indexeur) -> list:
+        """
+        Vérifie chaque claim par recherche sémantique dans ChromaDB.
+        """
+        print(f"  → Vérification RAG de {len(claims)} claims...")
+        verificateur = VerificateurClaimsRAG(indexeur)
+        resultats    = []
+
+        for i, claim in enumerate(claims):
+            if i % 10 == 0:
+                print(f"    [{i}/{len(claims)}]...")
+
+            resultat_rag = verificateur.verifier_claim(claim)
+
+            resultats.append({
+                **claim,
+                "verification_rag": resultat_rag
+            })
+
+        # Stats
+        confirmes     = sum(1 for r in resultats if r["verification_rag"]["statut_rag"] == "confirme")
+        incertains    = sum(1 for r in resultats if r["verification_rag"]["statut_rag"] == "incertain")
+        non_supportes = sum(1 for r in resultats if r["verification_rag"]["statut_rag"] == "non_supporte")
+
+        print(f"    Confirmés : {confirmes} | "
+              f"Incertains : {incertains} | "
+              f"Non supportés : {non_supportes}")
+
+        return resultats
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  ÉTAPE 3 : VÉRIFICATION LLM CROISÉE
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _verifier_claims_llm(self, claims_verifies: list,
+                               corpus_resume: str) -> list:
+        """
+        Vérification LLM croisée pour :
+          - Claims "incertains" par le RAG (confirmation croisée)
+          - Claims sans citation ET sans source RAG (détection hallucination)
+
+        Limité à MAX_VERIFICATIONS_LLM pour ne pas épuiser les tokens.
+        """
+        print(f"  → Vérification LLM croisée (max {self.MAX_VERIFICATIONS_LLM})...")
+        nb_llm = 0
+
+        for claim in claims_verifies:
+            rag = claim["verification_rag"]
+
+            # Cas 1 : incertain RAG + source disponible → confirmation croisée
+            if (rag["statut_rag"] == "incertain"
+                    and rag["sources_proches"]
+                    and nb_llm < self.MAX_VERIFICATIONS_LLM):
+
+                meilleure_source = rag["sources_proches"][0]
+                verdict_llm = self.verificateur_llm.verifier_claim_vs_source(
+                    claim   = claim["claim_pur"],
+                    extrait_source = meilleure_source["extrait"],
+                    titre_source   = meilleure_source.get("titre", "")
+                )
+                claim["verification_llm"] = verdict_llm
+                nb_llm += 1
+                time.sleep(0.8)
+
+            # Cas 2 : non supporté RAG + pas de citation → risque hallucination
+            elif (rag["statut_rag"] == "non_supporte"
+                    and not claim["a_citation"]
+                    and nb_llm < self.MAX_VERIFICATIONS_LLM):
+
+                verdict_hall = self.verificateur_llm.detecter_hallucination_llm(
+                    claim         = claim["claim_pur"],
+                    corpus_resume = corpus_resume
+                )
+                claim["verification_llm"] = verdict_hall
+                # Mise à jour du flag hallucination
+                claim["verification_rag"]["est_hallucination"] = (
+                    verdict_hall.get("risque_hallucination") == "eleve"
+                )
+                nb_llm += 1
+                time.sleep(0.8)
+
+            else:
+                claim.setdefault("verification_llm", None)
+
+        print(f"    {nb_llm} vérifications LLM effectuées")
+        return claims_verifies
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  ÉTAPE 4 : CLASSIFICATION FINALE DE CHAQUE CLAIM
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _classifier_claims(self, claims_verifies: list,
+                             citations_resolues: list) -> list:
+        """
+        Attribue un statut final à chaque claim en combinant
+        RAG + LLM + résolution de citation.
+
+        Statuts finaux :
+          ✅ valide          : confirmé RAG + citation résolue
+          ⚠  citation_faible : confirmé RAG mais citation non résolue
+          ❓ incertain       : incertain RAG, LLM partiel
+          🔴 hallucination   : non supporté + LLM risque élevé
+          📎 non_cite        : vrai mais sans citation (affirmation générale)
+        """
+        # Index citations par claim_id
+        cit_par_claim = defaultdict(list)
+        for c in citations_resolues:
+            cit_par_claim[c["claim_id"]].append(c)
+
+        for claim in claims_verifies:
+            rag      = claim["verification_rag"]
+            llm      = claim.get("verification_llm") or {}
+            cits     = cit_par_claim.get(claim["claim_id"], [])
+            a_cit_resolue = any(
+                c["resolution"]["statut"] in ("resolu", "partiel")
+                for c in cits
+            )
+
+            # Logique de classification
+            if rag["est_hallucination"] or llm.get("risque_hallucination") == "eleve":
+                statut_final = "hallucination"
+                priorite     = "critique"
+
+            elif rag["statut_rag"] == "confirme" and a_cit_resolue:
+                statut_final = "valide"
+                priorite     = "ok"
+
+            elif rag["statut_rag"] == "confirme" and not claim["a_citation"]:
+                statut_final = "non_cite"
+                priorite     = "faible"
+
+            elif rag["statut_rag"] == "confirme" and not a_cit_resolue:
+                statut_final = "citation_faible"
+                priorite     = "moyenne"
+
+            elif llm.get("verdict") == "confirme":
+                statut_final = "valide_llm"
+                priorite     = "ok"
+
+            elif llm.get("verdict") == "contredit":
+                statut_final = "contredit"
+                priorite     = "critique"
+
+            elif not claim["a_citation"] and rag["statut_rag"] == "non_supporte":
+                statut_final = "hallucination"
+                priorite     = "critique"
+
+            else:
+                statut_final = "incertain"
+                priorite     = "moyenne"
+
+            claim["statut_final"]     = statut_final
+            claim["priorite_action"]  = priorite
+            claim["citations_revue"]  = cits
+
+        return claims_verifies
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  GÉNÉRATION DE LA REVUE ANNOTÉE
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _annoter_revue(self, texte_revue: str,
+                        claims_classifies: list) -> str:
+        """
+        Génère une version annotée de la revue avec des marqueurs
+        de vérification sur chaque claim problématique.
+
+        Annotations :
+          🔴 [HALLUCINATION] — claim sans source
+          ⚠  [CITATION MANQUANTE] — claim vrai mais non cité
+          ❓ [INCERTAIN] — claim à vérifier
+          ✅ [VÉRIFIÉ] — claim confirmé (optionnel, peut être omis)
+        """
+        texte_annote = texte_revue
+
+        ICONES = {
+            "hallucination":  "🔴 **[HALLUCINATION — source non trouvée]**",
+            "contredit":      "❌ **[CONTREDIT PAR LE CORPUS]**",
+            "citation_faible":"⚠️  **[CITATION NON RÉSOLUE]**",
+            "non_cite":       "📎 **[AFFIRMATION NON CITÉE]**",
+            "incertain":      "❓ **[À VÉRIFIER]**"
+        }
+
+        # On annote uniquement les claims problématiques
+        for claim in claims_classifies:
+            statut = claim["statut_final"]
+            if statut in ICONES:
+                phrase    = claim["phrase_originale"]
+                annotee   = f"{ICONES[statut]} {phrase}"
+                texte_annote = texte_annote.replace(phrase, annotee, 1)
+
+        return texte_annote
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  GÉNÉRATION DU RAPPORT MARKDOWN
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _generer_rapport_md(self, rapport: dict, dossier_output: str):
+        meta    = rapport["meta"]
+        stats   = rapport["stats_claims"]
+        audit   = rapport["audit_bibliographie"]
+
+        lignes = []
+        lignes.append("# Rapport de Vérification des Citations\n")
+        lignes.append(
+            f"*{meta['nb_claims_total']} claims analysés | "
+            f"{meta['nb_citations_extraites']} citations extraites | "
+            f"{meta['nb_articles_corpus']} articles dans le corpus*\n"
+        )
+        lignes.append("---\n")
+
+        # ── Score global ──────────────────────────────────────────────────
+        score = meta.get("score_fiabilite", 0)
+        emoji = "✅" if score >= 80 else "⚠️" if score >= 60 else "🔴"
+        lignes.append(f"## Score de fiabilité : {emoji} {score}/100\n")
+
+        lignes.append("## Résumé des vérifications\n")
+        lignes.append(f"| Statut | Nombre |")
+        lignes.append(f"|--------|--------|")
+        for statut, nb in stats.items():
+            lignes.append(f"| {statut} | {nb} |")
+        lignes.append("")
+
+        # ── Hallucinations ────────────────────────────────────────────────
+        hallus = [
+            c for c in rapport["claims_classifies"]
+            if c["statut_final"] == "hallucination"
+        ]
+        if hallus:
+            lignes.append(f"## 🔴 Hallucinations détectées ({len(hallus)})\n")
+            for h in hallus:
+                lignes.append(f"**Claim** : {h['claim_pur'][:120]}...")
+                lignes.append(f"*Score similarité max* : {h['verification_rag']['score_max']}")
+                llm_info = h.get("verification_llm") or {}
+                if llm_info.get("explication"):
+                    lignes.append(f"*Analyse LLM* : {llm_info['explication']}")
+                lignes.append("")
+
+        # ── Citations non résolues ────────────────────────────────────────
+        fantomes = audit.get("citations_fantomes", [])
+        if fantomes:
+            lignes.append(f"## ⚠️ Citations non résolues ({len(fantomes)})\n")
+            vus = set()
+            for f in fantomes:
+                cit = f.get("citation_brute", "")
+                if cit not in vus:
+                    lignes.append(f"- `{cit}` — non trouvée dans le corpus")
+                    vus.add(cit)
+            lignes.append("")
+
+        # ── Audit bibliographie ───────────────────────────────────────────
+        lignes.append("## Audit bibliographie\n")
+        lignes.append(f"- **Couverture du corpus** : {audit['taux_couverture_corpus']}%")
+        lignes.append(f"- **Articles non cités** : {audit['nb_articles_non_cites']}")
+        lignes.append(f"- **Incohérences metadata** : {len(audit.get('incoherences_metadata',[]))}")
+        lignes.append(f"- **Verdict** : {audit['verdict_bibliographie']}\n")
+
+        if audit.get("articles_non_cites"):
+            lignes.append("**Articles du corpus jamais cités :**\n")
+            for art in audit["articles_non_cites"][:5]:
+                lignes.append(f"- {art['titre'][:70]} ({art['annee']})")
+            lignes.append("")
+
+        if audit.get("incoherences_metadata"):
+            lignes.append("**Incohérences d'années :**\n")
+            for inc in audit["incoherences_metadata"]:
+                lignes.append(
+                    f"- `{inc['citation']}` : "
+                    f"cité {inc['annee_citee']} mais réel = {inc['annee_reelle']}"
+                )
+            lignes.append("")
+
+        # ── Claims à corriger ─────────────────────────────────────────────
+        a_corriger = [
+            c for c in rapport["claims_classifies"]
+            if c["priorite_action"] in ("critique", "moyenne")
+            and c["statut_final"] != "hallucination"
+        ]
+        if a_corriger:
+            lignes.append(f"## ❓ Claims à vérifier manuellement ({len(a_corriger)})\n")
+            for c in a_corriger[:8]:
+                lignes.append(f"**[{c['statut_final'].upper()}]** {c['claim_pur'][:100]}...")
+                if c["verification_rag"]["sources_proches"]:
+                    src = c["verification_rag"]["sources_proches"][0]
+                    lignes.append(f"*Source proche (score={src['score_sim']})* : "
+                                  f"{src['titre'][:60]}")
+                lignes.append("")
+
+        texte = "\n".join(lignes)
+        path  = Path(dossier_output) / "rapport_citations.md"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(texte)
+        print(f"[Citateur] Rapport MD → {path}")
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  RUNNER PRINCIPAL
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def run(self, chemin_revue_json: str,
+            chemin_revue_md: str,
+            chemin_corpus: str,
+            dossier_output: str,
+            indexeur=None) -> dict:
+
+        print(f"\n{'='*60}")
+        print(f"  AGENT CITATEUR")
+        print(f"{'='*60}")
+        debut = time.time()
+        Path(dossier_output).mkdir(parents=True, exist_ok=True)
+
+        # ── Chargement ────────────────────────────────────────────────────
+        corpus, revue_json, texte_revue = self._charger(
+            chemin_revue_json, chemin_revue_md, chemin_corpus
+        )
+        registre_narrateur = revue_json.get("citations", [])
+        corpus_resume      = self._construire_resume_corpus(corpus)
+
+        print(f"[Citateur] {len(corpus)} articles | "
+              f"{len(registre_narrateur)} citations Narrateur\n")
+
+        if not texte_revue:
+            print("[Citateur] ⚠  Aucun texte de revue trouvé. Arrêt.")
+            return {}
+
+        # ── Étape 1 : Extraction et résolution ────────────────────────────
+        claims, citations_resolues, stats_res = \
+            self._extraire_et_resoudre_citations(texte_revue, corpus)
+
+        # ── Étape 2 : Vérification RAG ────────────────────────────────────
+        if indexeur:
+            claims = self._verifier_claims_rag(claims, indexeur)
+        else:
+            print("  ⚠  Pas d'indexeur fourni — vérification RAG ignorée.")
+            for c in claims:
+                c["verification_rag"] = {
+                    "statut_rag": "non_verifie",
+                    "score_max": 0.0,
+                    "sources_proches": [],
+                    "doc_id_confirme": None,
+                    "est_hallucination": False
+                }
+
+        # ── Étape 3 : Vérification LLM croisée ───────────────────────────
+        claims = self._verifier_claims_llm(claims, corpus_resume)
+
+        # ── Étape 4 : Classification finale ──────────────────────────────
+        claims = self._classifier_claims(claims, citations_resolues)
+
+        # ── Étape 5 : Audit bibliographie ─────────────────────────────────
+        print("  → Audit bibliographie...")
+        refs_bib = self.extracteur.extraire_citations_bibliographie(texte_revue)
+        auditeur = AuditeurBibliographie(corpus)
+        audit    = auditeur.auditer(citations_resolues, refs_bib, registre_narrateur)
+
+        # ── Étape 6 : Revue annotée ───────────────────────────────────────
+        print("  → Génération de la revue annotée...")
+        texte_annote = self._annoter_revue(texte_revue, claims)
+        annote_path  = Path(dossier_output) / "revue_corrigee.md"
+        with open(annote_path, "w", encoding="utf-8") as f:
+            f.write(texte_annote)
+
+        # ── Stats finales ─────────────────────────────────────────────────
+        stats_claims = Counter(c["statut_final"] for c in claims)
+        nb_hallus    = stats_claims.get("hallucination", 0)
+        nb_valides   = stats_claims.get("valide", 0) + stats_claims.get("valide_llm", 0)
+        nb_total     = len(claims)
+
+        # Score de fiabilité (0-100)
+        score_fiabilite = round(
+            (nb_valides / nb_total * 70)
+            + ((1 - nb_hallus / max(nb_total, 1)) * 30)
+            if nb_total > 0 else 0
+        )
+
+        # ── Rapport final ─────────────────────────────────────────────────
+        rapport = {
+            "meta": {
+                "nb_claims_total":       nb_total,
+                "nb_citations_extraites":len(citations_resolues),
+                "nb_articles_corpus":    len(corpus),
+                "stats_resolution":      stats_res,
+                "score_fiabilite":       score_fiabilite,
+                "duree_secondes":        round(time.time() - debut, 1)
+            },
+            "stats_claims":       dict(stats_claims),
+            "claims_classifies":  claims,
+            "citations_resolues": citations_resolues,
+            "audit_bibliographie":audit
+        }
+
+        # Sauvegarde JSON
+        json_path = Path(dossier_output) / "rapport_citations.json"
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(rapport, f, ensure_ascii=False, indent=2)
+
+        # Rapport Markdown
+        self._generer_rapport_md(rapport, dossier_output)
+
+        # ── Résumé console ────────────────────────────────────────────────
+        print(f"\n{'='*60}")
+        print(f"  RÉSUMÉ AGENT CITATEUR")
+        print(f"{'='*60}")
+        print(f"  Score de fiabilité     : {score_fiabilite}/100")
+        print(f"  Claims analysés        : {nb_total}")
+        print(f"  Validés                : {nb_valides}")
+        print(f"  Hallucinations         : {nb_hallus}")
+        print(f"  Citations non résolues : {audit['nb_citations_fantomes']}")
+        print(f"  Couverture corpus      : {audit['taux_couverture_corpus']}%")
+        print(f"  Durée totale           : {rapport['meta']['duree_secondes']}s")
+        print(f"  Revue annotée          : {annote_path}")
+
+        return rapport
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  POINT D'ENTRÉE
+# ═════════════════════════════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    from agent_indexeur import AgentIndexeur
+
+    indexeur = AgentIndexeur(dossier_chroma="data/chroma_db")
+
+    citateur = AgentCitateur()
+    rapport  = citateur.run(
+        chemin_revue_json = "data/corpus/revue_litterature.json",
+        chemin_revue_md   = "data/corpus/revue_litterature.md",
+        chemin_corpus     = "data/corpus/corpus_complet.json",
+        dossier_output    = "data/corpus",
+        indexeur          = indexeur
+    )
