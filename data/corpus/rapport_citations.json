@@ -1,0 +1,192 @@
+{
+  "meta": {
+    "nb_claims_total": 8,
+    "score_fiabilite": 87.5,
+    "nb_articles_corpus": 13,
+    "nb_sections": 6,
+    "duree_secondes": 15.4
+  },
+  "stats_claims": {
+    "valide": 6,
+    "approximatif": 1,
+    "hallucination": 1
+  },
+  "claims_classifies": [
+    {
+      "citation": "[Kyle, 1991]",
+      "claim_pur": "Les réformes économiques structurelles dans les pays en transition augmentent temporairement le risque de déstabilisation locale et de conflits armés si les filets de sécurité sociale sont absents.",
+      "statut": "valide",
+      "statut_final": "valide",
+      "verification_rag": {
+        "score_max": 0.94,
+        "sources_proches": [
+          {
+            "titre": "Economic Reform and Armed Conflict in Mozambique",
+            "auteurs": ["Steven Kyle"],
+            "annee": "1991",
+            "score_sim": 0.94
+          }
+        ]
+      }
+    },
+    {
+      "citation": "[Taguas et al., 2021]",
+      "claim_pur": "Le broyage des résidus de taille d'oliviers sous couvert herbacé intensif réduit significativement le ruissellement superficiel et améliore la rétention d'azote à long terme.",
+      "statut": "valide",
+      "statut_final": "valide",
+      "verification_rag": {
+        "score_max": 0.91,
+        "sources_proches": [
+          {
+            "titre": "Opportunities of super high-density olive orchard to improve soil quality",
+            "auteurs": ["Encarnacion V. Taguas", "Victor Marin-Moreno"],
+            "annee": "2021",
+            "score_sim": 0.91
+          }
+        ]
+      }
+    },
+    {
+      "citation": "[Hua et al., 2021]",
+      "claim_pur": "La biorémédiation des effluents viticoles par Trametes versicolor montre un taux d'abattement des polyphénols supérieur à 85% dans des bioréacteurs à lit fluidisé.",
+      "statut": "valide",
+      "statut_final": "valide",
+      "verification_rag": {
+        "score_max": 0.89,
+        "sources_proches": [
+          {
+            "titre": "Comparison between two reactors using Trametes versicolor for agricultural waste",
+            "auteurs": ["Kaidi Hua", "Montserrat Sarra"],
+            "annee": "2021",
+            "score_sim": 0.89
+          }
+        ]
+      }
+    },
+    {
+      "citation": "[Omazic & Zunk, 2021]",
+      "claim_pur": "La transition sémantique du concept de développement durable s'est stabilisée autour d'un consensus corporatif plutôt que d'un impératif écologique radical.",
+      "statut": "valide",
+      "statut_final": "valide",
+      "verification_rag": {
+        "score_max": 0.88,
+        "sources_proches": [
+          {
+            "titre": "Semi-Systematic Literature Review on Sustainability and Sustainable Development",
+            "auteurs": ["Amila Omazic", "Bernd Markus Zunk"],
+            "annee": "2021",
+            "score_sim": 0.88
+          }
+        ]
+      }
+    },
+    {
+      "citation": "[Theys, 2014]",
+      "claim_pur": "La crise du concept de développement durable provient de sa dilution dans des indicateurs technocratiques vides et de son incapacité à faire face aux inégalités territoriales croissantes.",
+      "statut": "valide",
+      "statut_final": "valide",
+      "verification_rag": {
+        "score_max": 0.92,
+        "sources_proches": [
+          {
+            "titre": "Le développement durable face à sa crise : un concept menacé, sous-exploité ou dépassé ?",
+            "auteurs": ["Jacques Theys"],
+            "annee": "2014",
+            "score_sim": 0.92
+          }
+        ]
+      }
+    },
+    {
+      "citation": "[Sousa et al., 2021]",
+      "claim_pur": "L'utilisation de méthodes d'aide à la décision multicritères (MCDA) permet d'optimiser le compromis entre les piliers économiques et écologiques des ODD.",
+      "statut": "valide",
+      "statut_final": "valide",
+      "verification_rag": {
+        "score_max": 0.87,
+        "sources_proches": [
+          {
+            "titre": "Multiple Criteria Decision Making for the Achievement of the UN Sustainable Development Goals",
+            "auteurs": ["Manuel Sousa", "Maria Fatima Almeida"],
+            "annee": "2021",
+            "score_sim": 0.87
+          }
+        ]
+      }
+    },
+    {
+      "citation": "[Trane et al., 2023]",
+      "claim_pur": "Les politiques régionales de l'UE démontrent un découplage partiel entre émissions carbone et PIB, bien que la dépendance aux matières importées reste critique.",
+      "statut": "approximatif",
+      "statut_final": "incertain",
+      "verification_rag": {
+        "score_max": 0.62,
+        "sources_proches": [
+          {
+            "titre": "Progress by Research to Achieve the Sustainable Development Goals in the EU",
+            "auteurs": ["Matteo Trane", "Luisa Marelli"],
+            "annee": "2023",
+            "score_sim": 0.62
+          }
+        ]
+      }
+    },
+    {
+      "citation": "[Smith & Dupont, 2024]",
+      "claim_pur": "L'intégration directe de nano-particules d'oxyde de zinc dans le traitement anaérobie des boues d'épuration de Kalundborg multiplie par trois la production globale de biogaz.",
+      "statut": "hallucination",
+      "statut_final": "hallucination",
+      "verification_rag": {
+        "score_max": 0.15,
+        "sources_proches": [
+          {
+            "titre": "Assessment of alkaline stabilization processes in industrial waste streams",
+            "auteurs": ["Vicente Monje", "Per Nobel"],
+            "annee": "2021",
+            "score_sim": 0.15
+          }
+        ]
+      }
+    }
+  ],
+  "audit_bibliographie": {
+    "verdict_bibliographie": "problematique",
+    "taux_couverture_corpus": 76.9,
+    "nb_articles_cites": 10,
+    "nb_articles_corpus": 13,
+    "nb_citations_fantomes": 1,
+    "citations_fantomes": [
+      {
+        "citation": "[Smith & Dupont, 2024]",
+        "raison": "Cette citation ne figure pas dans le corpus initial et l'article est inexistant sémantiquement."
+      }
+    ],
+    "articles_non_cites": [
+      {
+        "titre": "Opportunities of super high-density olive orchard to improve soil quality: Manag",
+        "auteurs": ["Encarnacion V. Taguasa", "Victor Marin-Moreno"],
+        "annee": "2021"
+      },
+      {
+        "titre": "A Proposal for Using Incentive Precommitments in Public Enterprise Funding",
+        "auteurs": ["Raj Kumar Sah", "Martin L. Weitzman"],
+        "annee": "1991"
+      },
+      {
+        "titre": "Assessment of alkaline stabilization processes in industrial waste streams using",
+        "auteurs": ["Vicente Monje", "Per Nobel"],
+        "annee": "2021"
+      }
+    ],
+    "toutes_citations_revue": [
+      "[Kyle, 1991]",
+      "[Taguas et al., 2021]",
+      "[Hua et al., 2021]",
+      "[Omazic & Zunk, 2021]",
+      "[Theys, 2014]",
+      "[Sousa et al., 2021]",
+      "[Trane et al., 2023]",
+      "[Smith & Dupont, 2024]"
+    ]
+  }
+}

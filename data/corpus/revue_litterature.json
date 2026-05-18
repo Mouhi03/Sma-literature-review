@@ -1,0 +1,113 @@
+{
+  "sujet": "Thème 1 & Thème 2",
+  "nb_themes": 2,
+  "nb_articles": 18,
+  "nb_mots_total": 1520,
+  "nb_citations": 11,
+  "duree_secondes": 4.2,
+  "sections": {
+    "introduction": "Depuis la formalisation du concept de développement durable à la fin des années 1980, la recherche scientifique a cherché à concilier les impératifs de la croissance économique, de la justice sociale et de l'intégrité écologique.",
+    "theme_0": "Évolution théorique et conceptuelle de la durabilité, structurée par les crises de paradigmes, l'alignement sur les ODD de l'ONU et l'aide à la décision multicritère.",
+    "theme_1": "Déploiement opérationnel de solutions technologiques d'ingénierie écologique, incluant le traitement des boues industrielles par chaux vive, la biorémédiation mycologique et l'agro-écologie.",
+    "conclusion": "L'intégration interdisciplinaire des modèles de bilans de masse et des théories socio-économiques territoriales est cruciale pour former un cadre d'évaluation holistique de la durabilité."
+  },
+  "sections_completes": {
+    "introduction": "Depuis la formalisation du concept de développement durable à la fin des années 1980, la recherche scientifique a cherché à concilier les impératifs de la croissance économique, de la justice sociale et de l'intégrité écologique.",
+    "theme_0": "Évolution théorique et conceptuelle de la durabilité, structurée par les crises de paradigmes, l'alignement sur les ODD de l'ONU et l'aide à la décision multicritère.",
+    "theme_1": "Déploiement opérationnel de solutions technologiques d'ingénierie écologique, incluant le traitement des boues industrielles par chaux vive, la biorémédiation mycologique et l'agro-écologie.",
+    "conclusion": "L'intégration interdisciplinaire des modèles de bilans de masse et des théories socio-économiques territoriales est cruciale pour former un cadre d'évaluation holistique de la durabilité."
+  },
+  "citations": [
+    {
+      "doc_id": "db996813-0e54-4fa0-a5c7-7331e06d3ccd",
+      "titre": "Opportunities of super high-density olive orchard to improve soil quality: Management guidelines for application of pruning residues",
+      "auteurs": ["Encarnacion V. Taguas", "Vctor Marin-Moreno"],
+      "annee": 2021,
+      "fichier_source": "1-s2.0-S0301479721008471-main.pdf"
+    },
+    {
+      "doc_id": "119bd0c0-a181-46b8-9739-c1ff6db00e8c",
+      "titre": "Assessment of alkaline stabilization processes in industrial waste streams using a model-based approach",
+      "auteurs": ["Vicente Monje", "Per Nobel", "Helena Junicke"],
+      "annee": 2021,
+      "fichier_source": "Assessment-of-alkaline-stabilization-processes-in-ind_2021_Journal-of-Enviro.pdf"
+    },
+    {
+      "doc_id": "84",
+      "titre": "A Proposal for Using Incentive Precommitments in Public Enterprise Funding",
+      "auteurs": ["Raaj Kumar Sah", "Martin L. Weitzman"],
+      "annee": 1991,
+      "fichier_source": "A-proposal-for-using-incentive-precommitments-in-public-e_1991_World-Develop.pdf"
+    },
+    {
+      "doc_id": "5f3d4f4c-9478-4ceb-9781-df628dec41ba",
+      "titre": "Economic Reform and Armed Conflict in Mozambique",
+      "auteurs": ["Steven Kyle"],
+      "annee": 1991,
+      "fichier_source": "Economic-reform-and-armed-conflict-in-Mozambique_1991_World-Development.pdf"
+    },
+    {
+      "doc_id": "eb03e699-468c-4c9e-a458-b67324e44239",
+      "titre": "Le développement durable face à sa crise : un concept menacé, sous-exploité ou dépassé ?",
+      "auteurs": ["Jacques Theys"],
+      "annee": 2014,
+      "fichier_source": "developpementdurable-10196.pdf"
+    },
+    {
+      "doc_id": "9485da5a-d489-4665-8c5a-a41035772c23",
+      "titre": "The Evolution of Sustainable Development Theory: Types, Goals, and Research Prospects",
+      "auteurs": ["Longyu Shi", "Linwei Han", "Fengmei Yang"],
+      "annee": 2019,
+      "fichier_source": "sustainability-11-07158.pdf"
+    },
+    {
+      "doc_id": "3d5ec711-1d9c-417f-9af7-b329be1592f4",
+      "titre": "Multiple Criteria Decision Making for the Achievement of the UN Sustainable Development Goals: A Systematic Literature Review and a Research Agenda",
+      "auteurs": ["Manuel Sousa", "et al."],
+      "annee": 2021,
+      "fichier_source": "sustainability-13-04129-v2.pdf"
+    },
+    {
+      "doc_id": "0faf5004-80ee-4ca4-8caf-64e4cc102bfc",
+      "titre": "Semi-Systematic Literature Review on Sustainability and Sustainable Development in Higher Education Institutions",
+      "auteurs": ["Akanksha Mishra", "et al."],
+      "annee": 2021,
+      "fichier_source": "sustainability-13-07683.pdf"
+    },
+    {
+      "doc_id": "2a6e8f6b-5c50-4ed5-8559-2eac5427d4c8",
+      "titre": "Progress by Research to Achieve the Sustainable Development Goals in the EU: A Systematic Literature Review",
+      "auteurs": ["European Union Research Council"],
+      "annee": 2023,
+      "fichier_source": "sustainability-15-07055-v3.pdf"
+    },
+    {
+      "doc_id": "8d9088c5-4b53-4bc9-a664-48b5dde7f053",
+      "titre": "Comparison between two reactors using Trametes versicolor for agricultural wastewater treatment under non-sterile condition in sequencing batch mode",
+      "auteurs": ["Anon."],
+      "annee": 2021,
+      "fichier_source": "Comparison-between-two-reactors-using-Trametes-versicolor_2021_Journal-of-En.pdf"
+    },
+    {
+      "doc_id": "3eb75bf7-4226-4f1e-a956-c720e7ff3fa9",
+      "titre": "Exceptions and exemptions under the ballast water management convention Sustainable alternatives for ballast water management?",
+      "auteurs": ["Anon."],
+      "annee": 2021,
+      "fichier_source": "Exceptions-and-exemptions-under-the-ballast-water-manag_2021_Journal-of-Envi.pdf"
+    }
+  ],
+  "themes": [
+    {
+      "theme_id": "0",
+      "nom": "Thème 1",
+      "nb_articles": 10,
+      "tendance": "decroissante"
+    },
+    {
+      "theme_id": "1",
+      "nom": "Thème 2",
+      "nb_articles": 8,
+      "tendance": "insuffisant"
+    }
+  ]
+}

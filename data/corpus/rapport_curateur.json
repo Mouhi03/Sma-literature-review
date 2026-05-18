@@ -1,0 +1,31 @@
+{
+  "total_traites": 13,
+  "total_rejetes": 0,
+  "pdfs_rejetes": [],
+  "duree_secondes": 0.1,
+  "repartition_types_pdf": {
+    "natif": 13
+  },
+  "methodes_extraction": {
+    "pdfplumber": 13
+  },
+  "domaines_detectes": {
+    "Agriculture": 1,
+    "Économie du développement": 1,
+    "Génie de l'environnement": 1,
+    "Environnement": 3,
+    "Géographie": 2,
+    "économie du développement": 1,
+    "Développement durable": 3,
+    "Education": 1
+  },
+  "avec_references": 4,
+  "avec_tableaux": 1,
+  "avec_doi": 7,
+  "scores_qualite": {
+    "élevé": 11,
+    "moyen": 2,
+    "faible": 0
+  },
+  "score_moyen": 0.79
+}

@@ -1,0 +1,190 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Ingestion Portal — SMA OS{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-12 animate-fade-in">
+    <div class="text-center">
+        <h1 class="text-3xl font-black tracking-tight mb-4 uppercase">Document Ingestion</h1>
+        <p class="text-zinc-500 max-w-xl mx-auto">Upload PDF manuscripts to the primary Artikel reservoir. Agents will automatically parse and vectorize them during the next pipeline cycle.</p>
+    </div>
+
+    <!-- Upload Zone -->
+    <div class="glass p-12 rounded-[2.5rem] border-2 border-dashed border-zinc-800 hover:border-indigo-500/50 transition-all group relative overflow-hidden">
+        <form method="post" enctype="multipart/form-data" id="upload-form" class="relative z-10">
+            {% csrf_token %}
+            <input type="file" name="pdfs" id="file-input" multiple class="hidden" accept=".pdf">
+            
+            <div class="flex flex-col items-center justify-center space-y-8 cursor-pointer">
+                <div class="w-24 h-24 rounded-[2rem] bg-indigo-500/10 flex items-center justify-center text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-2xl shadow-indigo-500/0 group-hover:shadow-indigo-500/20">
+                    <i class="fas fa-cloud-arrow-up text-3xl"></i>
+                </div>
+                <div class="text-center">
+                    <p class="text-xl font-bold mb-2">Drop manuscripts here</p>
+                    <p class="text-zinc-500 text-sm">or <span class="text-indigo-400 font-semibold underline decoration-indigo-500/30 underline-offset-4">browse filesystem</span></p>
+                </div>
+                <div class="flex items-center space-x-3 text-[10px] font-bold text-zinc-600 uppercase tracking-widest bg-zinc-900 px-4 py-2 rounded-full border border-zinc-800">
+                    <i class="fas fa-file-pdf text-rose-500"></i>
+                    <span>PDF format only • Max 50MB</span>
+                </div>
+            </div>
+            
+            <!-- File List (Hidden by default, shown via JS) -->
+            <div id="file-list" class="mt-12 hidden space-y-3" onclick="event.stopPropagation()">
+                <h4 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Selected for Ingestion</h4>
+                <div id="file-items" class="space-y-2"></div>
+                <button type="submit" class="w-full mt-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20">
+                    Execute Ingestion Pipeline
+                </button>
+            </div>
+        </form>
+
+        <!-- Decorative background glow -->
+        <div class="absolute -top-24 -right-24 w-64 h-64 bg-indigo-600/5 rounded-full blur-[80px] pointer-events-none"></div>
+        <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-purple-600/5 rounded-full blur-[80px] pointer-events-none"></div>
+    </div>
+
+    <!-- Active Corpus Summary -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="glass p-8 rounded-3xl border border-zinc-800/50">
+            <h3 class="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6">Current Reservoir</h3>
+            <div class="flex items-end space-x-4">
+                <span class="text-5xl font-black">{{ nb_articles }}</span>
+                <span class="text-sm text-zinc-500 mb-2 font-medium">Valid Manuscripts</span>
+            </div>
+        </div>
+        <div class="glass p-8 rounded-3xl border border-zinc-800/50">
+            <h3 class="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6">Storage Nodes</h3>
+            <div class="flex items-center space-x-6">
+                <div>
+                    <p class="text-xs font-bold text-zinc-200">Local Articles</p>
+                    <p class="text-[10px] text-zinc-500 font-mono mt-1">/data/articles/</p>
+                </div>
+                <div class="w-px h-10 bg-zinc-800"></div>
+                <div>
+                    <p class="text-xs font-bold text-zinc-200">Vector Index</p>
+                    <p class="text-[10px] text-zinc-500 font-mono mt-1">ChromaDB-v2</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const fileInput = document.getElementById('file-input');
+    const fileList = document.getElementById('file-list');
+    const fileItems = document.getElementById('file-items');
+    const dropZone = fileInput.closest('.glass');
+    
+    // Array pour accumuler tous les fichiers (la "file d'attente")
+    let accumulatedFiles = [];
+
+    // Création d'un input invisible juste pour la boîte de dialogue de sélection
+    const dummyInput = document.createElement('input');
+    dummyInput.type = 'file';
+    dummyInput.multiple = true;
+    dummyInput.accept = '.pdf';
+
+    // Handle Click
+    dropZone.onclick = (e) => {
+        // Empêcher le clic de se propager si on clique sur un bouton de suppression
+        if (e.target.closest('.remove-file')) return;
+        dummyInput.click();
+    };
+
+    // Prevent default drag behaviors
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, e => {
+            e.preventDefault();
+            e.stopPropagation();
+        }, false);
+    });
+
+    // Highlight drop zone
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+            dropZone.classList.add('border-indigo-500', 'bg-indigo-500/5');
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => {
+            dropZone.classList.remove('border-indigo-500', 'bg-indigo-500/5');
+        }, false);
+    });
+
+    // Handle dropped files
+    dropZone.addEventListener('drop', e => {
+        const dt = e.dataTransfer;
+        addFiles(dt.files);
+    });
+
+    dummyInput.onchange = e => {
+        addFiles(e.target.files);
+        // Réinitialiser le dummy input pour pouvoir sélectionner à nouveau le même fichier si besoin
+        dummyInput.value = ''; 
+    };
+
+    function addFiles(files) {
+        if (files.length > 0) {
+            for (let i = 0; i < files.length; i++) {
+                const f = files[i];
+                if (f.type !== 'application/pdf' && !f.name.toLowerCase().endsWith('.pdf')) continue;
+                
+                // Éviter les doublons basés sur le nom et la taille
+                const isDuplicate = accumulatedFiles.some(existingFile => 
+                    existingFile.name === f.name && existingFile.size === f.size
+                );
+                
+                if (!isDuplicate) {
+                    accumulatedFiles.push(f);
+                }
+            }
+            updateFileListUI();
+            syncFileInput();
+        }
+    }
+
+    // Fonction pour retirer un fichier de la liste
+    window.removeFile = function(index) {
+        accumulatedFiles.splice(index, 1);
+        updateFileListUI();
+        syncFileInput();
+    };
+
+    function updateFileListUI() {
+        if (accumulatedFiles.length > 0) {
+            fileList.classList.remove('hidden');
+            fileItems.innerHTML = '';
+            accumulatedFiles.forEach((f, index) => {
+                fileItems.innerHTML += `
+                    <div class="flex items-center justify-between p-4 bg-white/[0.02] border border-zinc-800/50 rounded-xl group/item">
+                        <div class="flex items-center space-x-4 overflow-hidden">
+                            <i class="fas fa-file-pdf text-rose-500 shrink-0"></i>
+                            <span class="text-xs font-medium text-zinc-300 truncate">${f.name}</span>
+                        </div>
+                        <div class="flex items-center space-x-4 shrink-0 pl-2">
+                            <span class="text-[10px] font-mono text-zinc-600 uppercase tracking-tighter">${(f.size/1024/1024).toFixed(2)} MB</span>
+                            <button type="button" onclick="removeFile(${index})" class="remove-file text-zinc-600 hover:text-red-400 transition-colors bg-transparent border-none p-1 cursor-pointer">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            fileList.classList.add('hidden');
+            fileItems.innerHTML = '';
+        }
+    }
+
+    function syncFileInput() {
+        // Met à jour l'input file caché avec tous les fichiers accumulés 
+        // pour qu'ils soient tous envoyés au submit du formulaire
+        const dataTransfer = new DataTransfer();
+        accumulatedFiles.forEach(f => dataTransfer.items.add(f));
+        fileInput.files = dataTransfer.files;
+    }
+</script>
+{% endblock %}

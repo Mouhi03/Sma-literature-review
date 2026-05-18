@@ -1,0 +1,97 @@
+{
+  "total_articles_traites": 0,
+  "articles_indexes": 0,
+  "articles_skips": 13,
+  "articles_echoues": 0,
+  "total_chunks_produits": 0,
+  "total_chunks_rejetes": 0,
+  "taux_rejet_pct": 0,
+  "moyenne_chunks_article": 0,
+  "strategies_chunking": {},
+  "duree_secondes": 0.0,
+  "modele_embedding": "paraphrase-multilingual-mpnet-base-v2",
+  "pour_cartographe": {
+    "doc_ids_indexes": [],
+    "nb_abstracts_dispo": 0,
+    "articles_sans_abstract": [],
+    "repartition_domaines": {}
+  },
+  "pour_detecteur": {
+    "articles_sans_sections": [],
+    "repartition_claim_type": {},
+    "repartition_evidence": {},
+    "nb_articles_empiriques": 0,
+    "nb_articles_theoriques": 0,
+    "nb_articles_review": 0
+  },
+  "pour_narrateur": {
+    "annee_min": null,
+    "annee_max": null,
+    "plage_temporelle": "inconnue"
+  },
+  "alertes": [
+    {
+      "type": "annees_manquantes",
+      "message": "Aucune année détectée dans le corpus — évolution temporelle impossible pour Narrateur"
+    }
+  ],
+  "nb_alertes": 1,
+  "anomalies_chunks": [],
+  "total_anomalies": 0,
+  "articles_skips_detail": [
+    {
+      "doc_id": "80021de2-ea93-499e-8e32-2dc5259d8fde",
+      "titre": "Opportunities of super high-density olive orchard to im"
+    },
+    {
+      "doc_id": "0a8e7a25-cb2f-42d6-9277-3d18601d9f9e",
+      "titre": "A Proposal for Using Incentive Precommitments in Public"
+    },
+    {
+      "doc_id": "13ec9dbb-f694-40be-a013-5e67d84612e9",
+      "titre": "Assessment of alkaline stabilization processes in indus"
+    },
+    {
+      "doc_id": "7ce994bb-34e7-4632-9033-7048f1164afb",
+      "titre": "Comparison between two reactors using Trametes versicol"
+    },
+    {
+      "doc_id": "cf64631f-1599-4d23-9b3e-45cc20f0504b",
+      "titre": "Le développement durable face à sa crise : un concept m"
+    },
+    {
+      "doc_id": "d4b10141-4330-401e-bd63-4ee0b12d5a10",
+      "titre": "L'approche territoriale du \"développement durable\", con"
+    },
+    {
+      "doc_id": "f0a900ea-78e7-48be-a56d-386abc801eb7",
+      "titre": "Le développement durable face au territoire : éléments "
+    },
+    {
+      "doc_id": "261140cb-f2ef-4c9f-9918-6c04f5d1ef41",
+      "titre": "Economic Reform and Armed Conflict in Mozambique"
+    },
+    {
+      "doc_id": "19994bda-bb8d-4a0b-963b-e06a2565b932",
+      "titre": "Exceptions and exemptions under the ballast water manag"
+    },
+    {
+      "doc_id": "367beb79-6e7a-4b8d-8f52-ec79d5b65fb2",
+      "titre": "The Evolution of Sustainable Development Theory: Types,"
+    },
+    {
+      "doc_id": "3d5ec711-1d9c-417f-9af7-b329be1592f4",
+      "titre": "Multiple Criteria Decision Making for the Achievement o"
+    },
+    {
+      "doc_id": "0faf5004-80ee-4ca4-8caf-64e4cc102bfc",
+      "titre": "Semi-Systematic Literature Review on Sustainability and"
+    },
+    {
+      "doc_id": "2a6e8f6b-5c50-4ed5-8559-2eac5427d4c8",
+      "titre": "Progress by Research to Achieve the Sustainable Develop"
+    }
+  ],
+  "articles_echoues_detail": [],
+  "stats_par_article": []
+}

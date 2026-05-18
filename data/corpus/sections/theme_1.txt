@@ -1,0 +1,1 @@
+_Section 'Gestion de l'environnement' non générée suite à une erreur LLM._

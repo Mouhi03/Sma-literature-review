@@ -1,0 +1,842 @@
+"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║            AGENT NARRATEUR — SMA Revue de Littérature                      ║
+║                                                                              ║
+║  Reçoit   : carte_corpus.json  (Agent Cartographe)                          ║
+║             AgentIndexeur      (recherche sémantique dans les chunks)        ║
+║             corpus_complet.json (métadonnées complètes)                      ║
+║                                                                              ║
+║  Produit  : revue_litterature.md  (Markdown académique avec citations)       ║
+║             revue_litterature.json (structure machine-readable)               ║
+║                                                                              ║
+║  Structure de la revue générée :                                             ║
+║    1. Introduction & contexte général                                        ║
+║    2. Une section par thème (contexte → évolution → débats → état actuel)   ║
+║    3. Évolution méthodologique transversale                                  ║
+║    4. Débats et controverses inter-thèmes                                    ║
+║    5. Conclusion & synthèse                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Installation :
+    pip install groq python-dotenv
+"""
+
+import os
+import json
+import time
+import re
+from pathlib import Path
+from collections import defaultdict
+
+from groq import Groq
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  1. GESTIONNAIRE DE CITATIONS
+# ═════════════════════════════════════════════════════════════════════════════
+
+class GestionnaireCitations:
+    """
+    Maintient un registre de toutes les citations utilisées dans la revue.
+    Produit la bibliographie finale en format académique.
+    Permet à l'Agent Citateur de vérifier chaque claim.
+    """
+
+    def __init__(self, corpus: list):
+        # Index doc_id → article complet
+        self.index = {doc["doc_id"]: doc for doc in corpus if doc.get("doc_id")}
+        # Citations utilisées dans l'ordre d'apparition
+        self.citations_utilisees = {}
+        self.compteur = 0
+
+    def citer(self, doc_id: str) -> str:
+        """
+        Retourne la clé de citation courte : [Auteur, Année].
+        Enregistre la citation pour la bibliographie.
+        """
+        if doc_id not in self.index:
+            return "[source inconnue]"
+
+        if doc_id not in self.citations_utilisees:
+            self.compteur += 1
+            self.citations_utilisees[doc_id] = self.compteur
+
+        doc    = self.index[doc_id]
+        auteurs = doc.get("auteurs", [])
+        annee   = doc.get("annee", "?")
+
+        if auteurs:
+            # Format : [PremierAuteur et al., Année] si > 2 auteurs
+            premier = str(auteurs[0]).split()[-1]  # nom de famille
+            if len(auteurs) > 2:
+                cle = f"[{premier} et al., {annee}]"
+            elif len(auteurs) == 2:
+                second = str(auteurs[1]).split()[-1]
+                cle = f"[{premier} & {second}, {annee}]"
+            else:
+                cle = f"[{premier}, {annee}]"
+        else:
+            cle = f"[Inconnu, {annee}]"
+
+        return cle
+
+    def get_doc(self, doc_id: str) -> dict:
+        return self.index.get(doc_id, {})
+
+    def generer_bibliographie(self) -> str:
+        """Produit la section Références en format APA simplifié."""
+        if not self.citations_utilisees:
+            return ""
+
+        lignes = ["## Références\n"]
+
+        # Tri par ordre d'apparition dans le texte
+        triees = sorted(self.citations_utilisees.items(), key=lambda x: x[1])
+
+        for doc_id, _ in triees:
+            doc = self.index.get(doc_id, {})
+            auteurs = doc.get("auteurs", ["Auteur inconnu"])
+            annee   = doc.get("annee", "s.d.")
+            titre   = doc.get("titre", "Titre inconnu")
+            journal = doc.get("journal_ou_conference", "")
+            doi     = doc.get("doi", "")
+
+            # Format APA simplifié
+            auteurs_str = ", ".join(str(a) for a in auteurs[:3])
+            if len(auteurs) > 3:
+                auteurs_str += " et al."
+
+            ref = f"- {auteurs_str} ({annee}). *{titre}*."
+            if journal:
+                ref += f" {journal}."
+            if doi:
+                ref += f" https://doi.org/{doi}"
+
+            lignes.append(ref)
+
+        return "\n".join(lignes)
+
+    def get_registre(self) -> list:
+        """Retourne le registre complet pour l'Agent Citateur."""
+        registre = []
+        for doc_id, ordre in self.citations_utilisees.items():
+            doc = self.index.get(doc_id, {})
+            registre.append({
+                "ordre_apparition": ordre,
+                "doc_id":    doc_id,
+                "titre":     doc.get("titre", ""),
+                "auteurs":   doc.get("auteurs", []),
+                "annee":     doc.get("annee"),
+                "doi":       doc.get("doi"),
+                "fichier_source": doc.get("fichier_source", "")
+            })
+        return sorted(registre, key=lambda x: x["ordre_apparition"])
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  2. AGENT NARRATEUR
+# ═════════════════════════════════════════════════════════════════════════════
+
+class AgentNarrateur:
+    """
+    Génère la revue de littérature section par section.
+
+    Stratégie de génération longue :
+    - On ne génère PAS tout en un seul appel LLM (limite de tokens).
+    - Chaque section est générée indépendamment avec son propre contexte.
+    - Le contexte de chaque appel contient : les chunks pertinents
+      récupérés via l'Indexeur + les métadonnées des articles du thème.
+    - Les citations sont injectées par le GestionnaireCitations.
+    """
+
+    # Nombre de chunks récupérés par recherche sémantique
+    N_CHUNKS_PAR_SECTION = 6
+
+    def __init__(self):
+        self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        self.model  = "llama-3.3-70b-versatile"
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  CHARGEMENTS
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _charger_carte(self, chemin_carte: str) -> dict:
+        with open(chemin_carte, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def _charger_corpus(self, chemin_corpus: str) -> list:
+        with open(chemin_corpus, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def _ordonner_themes(self, carte: dict) -> list:
+        """
+        Trie les thèmes par année de première publication (chronologique).
+        Donne une narration naturelle : du plus ancien au plus récent.
+        """
+        themes = carte.get("themes", {})
+        return sorted(
+            themes.items(),
+            key=lambda x: x[1].get("evolution_temporelle", {})
+                            .get("annee_premiere_publication") or 9999
+        )
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  CONSTRUCTION DU CONTEXTE PAR SECTION
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _construire_contexte_theme(self, theme: dict,
+                                    indexeur,
+                                    citations: GestionnaireCitations,
+                                    requete_supplement: str = "") -> str:
+        """
+        Construit le contexte textuel pour générer une section thématique.
+        Combine :
+          - Les métadonnées des articles du thème
+          - Les chunks pertinents récupérés via l'Indexeur (RAG)
+        """
+        nom_theme = theme.get("nom_theme", "")
+        contexte  = f"THÈME : {nom_theme}\n\n"
+
+        # ── Articles du thème avec leurs infos clés ───────────────────────
+        contexte += "ARTICLES DE CE THÈME :\n"
+        for art in theme.get("articles", []):
+            doc = citations.get_doc(art["doc_id"])
+            if not doc:
+                continue
+            auteurs = doc.get("auteurs", [])
+            auteurs_str = ", ".join(str(a) for a in auteurs[:2])
+            cle_citation = citations.citer(art["doc_id"])
+            contexte += (
+                f"- {cle_citation} : {doc.get('titre','')[:80]}\n"
+                f"  Contribution : {doc.get('contribution_principale','')[:150]}\n"
+                f"  Méthodes : {', '.join(doc.get('methodes') or [])}\n"
+                f"  Populations : {', '.join(doc.get('populations_etudiees') or [])}\n"
+                f"  Evidence : {doc.get('evidence_level','')}\n\n"
+            )
+
+        # ── Chunks RAG pertinents pour ce thème ───────────────────────────
+        if indexeur:
+            requete = f"{nom_theme} {requete_supplement}".strip()
+            chunks_rag = indexeur.rechercher(requete, n_resultats=self.N_CHUNKS_PAR_SECTION)
+
+            if chunks_rag:
+                contexte += "\nPASSAGES PERTINENTS DES ARTICLES :\n"
+                for chunk in chunks_rag:
+                    cle = citations.citer(chunk.get("doc_id", ""))
+                    section = chunk.get("section_nom", "")
+                    texte   = chunk.get("texte", "")[:300]
+                    contexte += f"[{section}] {cle} : {texte}\n\n"
+
+        return contexte
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  APPEL LLM GÉNÉRIQUE
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _generer_section(self, prompt: str, max_tokens: int = 1200) -> str:
+        """Appel LLM avec retry sur erreur de rate limit."""
+        for tentative in range(3):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.4,
+                    max_tokens=max_tokens
+                )
+                return response.choices[0].message.content.strip()
+            except Exception as e:
+                if "rate_limit" in str(e).lower() and tentative < 2:
+                    print(f"  ⏳ Rate limit — attente 10s...")
+                    time.sleep(10)
+                else:
+                    print(f"  ⚠  Erreur LLM : {e}")
+                    return "_Section non générée (erreur LLM)._"
+        return "_Section non générée après 3 tentatives._"
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  SECTION 1 : INTRODUCTION GÉNÉRALE
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _generer_introduction(self, carte: dict,
+                               citations: GestionnaireCitations) -> str:
+        print("  → Génération : Introduction...")
+
+        meta           = carte.get("meta", {})
+        themes         = carte.get("themes", {})
+        noms_themes    = [t.get("nom_theme","") for t in themes.values()]
+        ev_globale     = carte.get("evolution_globale", {})
+        annees         = ev_globale.get("annees_couvertes", [])
+        periode        = f"{min(annees)}-{max(annees)}" if annees else "inconnue"
+        nb_articles    = meta.get("nb_articles_total", 0)
+        narrative_glob = meta.get("analyse_narrative_globale", "")
+
+        # Articles les plus anciens pour ancrer le contexte historique
+        articles_anciens = []
+        for theme in themes.values():
+            arts = sorted(theme.get("articles", []),
+                          key=lambda x: x.get("annee") or 9999)
+            if arts:
+                articles_anciens.append(arts[0])
+
+        contexte_anciens = ""
+        for art in articles_anciens[:4]:
+            doc = citations.get_doc(art["doc_id"])
+            if doc:
+                cle = citations.citer(art["doc_id"])
+                contexte_anciens += (
+                    f"- {cle} : {doc.get('titre','')[:70]} "
+                    f"({doc.get('contribution_principale','')[:100]})\n"
+                )
+
+        prompt = f"""Tu es un chercheur expert en rédaction académique.
+
+Tu dois rédiger l'introduction d'une revue de littérature scientifique structurée.
+
+INFORMATIONS SUR LE CORPUS :
+- Période couverte : {periode}
+- Nombre d'articles analysés : {nb_articles}
+- Grands thèmes identifiés : {', '.join(noms_themes)}
+- Analyse narrative préalable : {narrative_glob}
+
+ARTICLES FONDATEURS (les plus anciens du corpus) :
+{contexte_anciens}
+
+CONSIGNES DE RÉDACTION :
+- Commence par situer le contexte général du domaine de recherche.
+- Explique pourquoi ce domaine est important et quelles sont les questions
+  scientifiques fondamentales qu'il adresse.
+- Présente brièvement les grands thèmes qui seront développés.
+- Mentionne la portée temporelle de la revue.
+- Cite les articles en format [Auteur, Année] lorsque tu les mentionnes.
+- Rédige en français académique, en prose fluide, 3-4 paragraphes.
+- N'utilise pas de titres ni de puces. Texte continu uniquement.
+
+Génère uniquement le texte de l'introduction, sans titre."""
+
+        return self._generer_section(prompt, max_tokens=900)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  SECTION 2 : UNE SECTION PAR THÈME
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _generer_section_theme(self, theme_id, theme: dict,
+                                carte: dict,
+                                indexeur,
+                                citations: GestionnaireCitations,
+                                themes_precedents: list) -> str:
+        nom_theme = theme.get("nom_theme", f"Thème {theme_id}")
+        print(f"  → Génération : Section '{nom_theme}'...")
+
+        # Contexte RAG
+        contexte = self._construire_contexte_theme(
+            theme, indexeur, citations,
+            requete_supplement="methodology results discussion"
+        )
+
+        # Évolution temporelle
+        ev = theme.get("evolution_temporelle", {})
+        dist_annuelle = ev.get("distribution_annuelle", {})
+        tendance      = ev.get("tendance", "inconnue")
+        annee_debut   = ev.get("annee_premiere_publication", "?")
+        annee_pic     = ev.get("annee_pic", "?")
+
+        # Méthodes
+        methodes_dom = theme.get("methodes_dominantes", [])
+        sous_themes  = theme.get("sous_themes", [])
+
+        # Lien avec les thèmes précédents
+        transition = ""
+        if themes_precedents:
+            dernier = themes_precedents[-1]
+            transition = (
+                f"Ce thème fait suite au thème '{dernier}', "
+                f"qui a posé les bases conceptuelles de ce domaine."
+            )
+
+        prompt = f"""Tu es un chercheur expert en rédaction académique.
+
+Tu dois rédiger la section d'une revue de littérature consacrée au thème suivant.
+
+{contexte}
+
+ÉVOLUTION TEMPORELLE :
+- Première publication : {annee_debut}
+- Tendance : {tendance}
+- Pic d'activité : {annee_pic}
+- Distribution par année : {json.dumps(dist_annuelle)}
+
+MÉTHODES DOMINANTES : {', '.join(methodes_dom)}
+SOUS-THÈMES : {', '.join(sous_themes)}
+TRANSITION : {transition}
+
+CONSIGNES DE RÉDACTION :
+- Structure la section en 4 parties (sans les nommer explicitement) :
+  1. CONTEXTE : Introduis le thème, pourquoi il a émergé, quels problèmes il adresse.
+  2. ÉVOLUTION : Comment la recherche sur ce thème a évolué dans le temps,
+     quelles étapes importantes ont marqué son développement.
+  3. DÉBATS : Quelles tensions, contradictions ou débats existent entre
+     les chercheurs de ce thème. S'il n'y en a pas, parle des limites reconnues.
+  4. ÉTAT ACTUEL : Où en est la recherche aujourd'hui sur ce thème,
+     quelles sont les questions encore ouvertes.
+- Cite les articles en format [Auteur, Année] dès que tu fais une affirmation
+  basée sur un article spécifique.
+- Rédige en français académique, 4-6 paragraphes de prose continue.
+- Ne mets pas de titres, de puces ou de listes. Texte continu uniquement.
+
+Génère uniquement le texte de la section, sans titre."""
+
+        return self._generer_section(prompt, max_tokens=1400)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  SECTION 3 : ÉVOLUTION MÉTHODOLOGIQUE TRANSVERSALE
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _generer_section_methodologie(self, carte: dict,
+                                       indexeur,
+                                       citations: GestionnaireCitations) -> str:
+        print("  → Génération : Évolution méthodologique...")
+
+        carte_methodes = carte.get("carte_methodes_globale", {})
+        methodes_freq  = carte_methodes.get("methodes_frequences", {})
+        claim_types    = carte_methodes.get("claim_types", {})
+        evidence_lvls  = carte_methodes.get("evidence_levels", {})
+
+        # Chunks RAG sur la méthodologie
+        chunks_methodo = []
+        if indexeur:
+            chunks_methodo = indexeur.rechercher_par_section(
+                "research methodology experimental design evaluation",
+                section="methodology",
+                n_resultats=6
+            )
+
+        contexte_chunks = ""
+        for chunk in chunks_methodo:
+            cle    = citations.citer(chunk.get("doc_id", ""))
+            texte  = chunk.get("texte", "")[:250]
+            contexte_chunks += f"{cle} : {texte}\n\n"
+
+        prompt = f"""Tu es un chercheur expert en analyse méthodologique.
+
+Tu dois rédiger la section "Approches méthodologiques" d'une revue de littérature.
+
+MÉTHODES IDENTIFIÉES DANS LE CORPUS (fréquences) :
+{json.dumps(methodes_freq, ensure_ascii=False, indent=2)}
+
+TYPES DE CONTRIBUTIONS :
+{json.dumps(claim_types, ensure_ascii=False)}
+
+NIVEAUX DE PREUVE :
+{json.dumps(evidence_lvls, ensure_ascii=False)}
+
+PASSAGES MÉTHODOLOGIQUES DES ARTICLES :
+{contexte_chunks}
+
+CONSIGNES DE RÉDACTION :
+- Analyse comment les approches méthodologiques ont évolué dans ce domaine.
+- Identifie les méthodes dominantes et explique pourquoi elles sont privilégiées.
+- Commente les différences entre les études empiriques, théoriques et les revues.
+- Discute de la qualité et robustesse des preuves (evidence levels).
+- Identifie les méthodes émergentes ou peu utilisées qui pourraient enrichir le domaine.
+- Cite les articles en format [Auteur, Année].
+- 3-4 paragraphes de prose continue. Pas de titres ni de puces.
+
+Génère uniquement le texte de la section, sans titre."""
+
+        return self._generer_section(prompt, max_tokens=1000)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  SECTION 4 : DÉBATS ET CONTROVERSES INTER-THÈMES
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _generer_section_debats(self, carte: dict,
+                                 indexeur,
+                                 citations: GestionnaireCitations) -> str:
+        print("  → Génération : Débats et controverses...")
+
+        themes = carte.get("themes", {})
+
+        # Résumé des thèmes pour identifier les tensions
+        resume_themes = ""
+        for cid, theme in themes.items():
+            resume_themes += (
+                f"- {theme.get('nom_theme','')} : "
+                f"{theme.get('resume_narratif','')[:150]} "
+                f"| Méthodes : {', '.join(theme.get('methodes_dominantes',[])[:3])}\n"
+            )
+
+        # Chunks RAG sur discussion et débats
+        chunks_debats = []
+        if indexeur:
+            chunks_debats = indexeur.rechercher(
+                "controversy debate limitation critique comparison approach",
+                n_resultats=6,
+                filtre={"section_nom": "discussion"}
+            )
+
+        contexte_debats = ""
+        for chunk in chunks_debats:
+            cle   = citations.citer(chunk.get("doc_id", ""))
+            texte = chunk.get("texte", "")[:250]
+            contexte_debats += f"{cle} : {texte}\n\n"
+
+        # Limites déclarées par les auteurs
+        limites_corpus = []
+        for art in citations.index.values():
+            for limite in (art.get("limites_declarees") or []):
+                if limite:
+                    limites_corpus.append(str(limite))
+
+        top_limites = limites_corpus[:10]
+
+        prompt = f"""Tu es un chercheur expert en analyse critique de littérature scientifique.
+
+Tu dois rédiger la section "Débats et tensions" d'une revue de littérature.
+
+THÈMES DU CORPUS ET LEURS CONTRIBUTIONS :
+{resume_themes}
+
+PASSAGES DE DISCUSSION DES ARTICLES :
+{contexte_debats}
+
+LIMITES RECONNUES PAR LES AUTEURS EUX-MÊMES :
+{chr(10).join(f'- {l}' for l in top_limites)}
+
+CONSIGNES DE RÉDACTION :
+- Identifie les tensions conceptuelles ou méthodologiques entre les différents
+  courants de recherche représentés dans les thèmes.
+- Présente les débats non résolus : désaccords sur les définitions, les méthodes,
+  les résultats contradictoires entre études.
+- Discute les limites récurrentes de la littérature (biais, échantillons,
+  contextes non représentés).
+- S'il n'y a pas de vrais débats, analyse les tensions implicites ou les
+  divergences d'approche entre les auteurs.
+- Adopte un ton analytique et nuancé. Pas de jugements de valeur.
+- Cite les articles en format [Auteur, Année].
+- 3-4 paragraphes de prose continue. Pas de titres ni de puces.
+
+Génère uniquement le texte de la section, sans titre."""
+
+        return self._generer_section(prompt, max_tokens=1000)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  SECTION 5 : ÉTAT ACTUEL ET SYNTHÈSE
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _generer_section_etat_actuel(self, carte: dict,
+                                      indexeur,
+                                      citations: GestionnaireCitations) -> str:
+        print("  → Génération : État actuel de la recherche...")
+
+        themes    = carte.get("themes", {})
+        ev_globale = carte.get("evolution_globale", {})
+        annees    = ev_globale.get("annees_couvertes", [])
+
+        # Thèmes récents (tendance croissante ou émergente)
+        themes_recents = [
+            t.get("nom_theme", "") for t in themes.values()
+            if t.get("evolution_temporelle", {}).get("tendance")
+               in ("croissante", "emergente")
+        ]
+
+        # Articles les plus récents
+        articles_recents = []
+        for theme in themes.values():
+            arts = sorted(
+                theme.get("articles", []),
+                key=lambda x: x.get("annee") or 0,
+                reverse=True
+            )
+            articles_recents.extend(arts[:2])
+
+        articles_recents = sorted(
+            articles_recents, key=lambda x: x.get("annee") or 0, reverse=True
+        )[:6]
+
+        contexte_recents = ""
+        for art in articles_recents:
+            doc = citations.get_doc(art["doc_id"])
+            if doc:
+                cle = citations.citer(art["doc_id"])
+                contexte_recents += (
+                    f"- {cle} ({art.get('annee','?')}) : "
+                    f"{doc.get('contribution_principale','')[:150]}\n"
+                )
+
+        # Chunks récents via RAG
+        chunks_recents = []
+        if indexeur:
+            chunks_recents = indexeur.rechercher(
+                "current state future direction recent advances open challenges",
+                n_resultats=5,
+                filtre={"section_nom": "conclusion"}
+            )
+
+        contexte_chunks = ""
+        for chunk in chunks_recents:
+            cle   = citations.citer(chunk.get("doc_id", ""))
+            texte = chunk.get("texte", "")[:250]
+            contexte_chunks += f"{cle} : {texte}\n\n"
+
+        prompt = f"""Tu es un chercheur expert en rédaction académique.
+
+Tu dois rédiger la section "État actuel de la recherche" d'une revue de littérature.
+
+THÈMES À TENDANCE CROISSANTE OU ÉMERGENTE : {', '.join(themes_recents)}
+
+CONTRIBUTIONS LES PLUS RÉCENTES DU CORPUS :
+{contexte_recents}
+
+PASSAGES DE CONCLUSION DES ARTICLES RÉCENTS :
+{contexte_chunks}
+
+PÉRIODE COUVERTE : {min(annees) if annees else '?'} — {max(annees) if annees else '?'}
+
+CONSIGNES DE RÉDACTION :
+- Dresse un portrait de l'état actuel du domaine : où en est-on aujourd'hui ?
+- Quelles sont les avancées les plus significatives des dernières années ?
+- Quels thèmes sont en plein essor et pourquoi ?
+- Identifie les questions de recherche qui restent ouvertes.
+- Indique quelles directions semblent prometteuses selon les auteurs.
+- Cite les articles en format [Auteur, Année].
+- 3-4 paragraphes de prose continue. Pas de titres ni de puces.
+
+Génère uniquement le texte de la section, sans titre."""
+
+        return self._generer_section(prompt, max_tokens=1000)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  SECTION 6 : CONCLUSION GÉNÉRALE
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _generer_conclusion(self, carte: dict,
+                             sections_generees: dict,
+                             citations: GestionnaireCitations) -> str:
+        print("  → Génération : Conclusion...")
+
+        themes     = carte.get("themes", {})
+        noms_themes = [t.get("nom_theme","") for t in themes.values()]
+        nb_articles = carte.get("meta", {}).get("nb_articles_total", 0)
+        nb_citations = len(citations.citations_utilisees)
+
+        prompt = f"""Tu es un chercheur expert en rédaction académique.
+
+Tu dois rédiger la conclusion d'une revue de littérature scientifique.
+
+THÈMES COUVERTS : {', '.join(noms_themes)}
+ARTICLES ANALYSÉS : {nb_articles}
+RÉFÉRENCES CITÉES : {nb_citations}
+
+CONSIGNES DE RÉDACTION :
+- Commence par une synthèse brève des grands enseignements de cette revue.
+- Rappelle les thèmes majeurs et leurs interconnexions.
+- Souligne les contributions les plus marquantes du domaine.
+- Identifie clairement les lacunes de la littérature (ce qui n'a pas encore
+  été étudié, les populations ou contextes absents, les méthodes inexploitées).
+- Formule 2-3 pistes de recherche futures concrètes et justifiées.
+- Termine par une phrase de clôture qui replace ce domaine dans un contexte
+  scientifique plus large.
+- 3-4 paragraphes de prose continue. Pas de titres ni de puces.
+
+Génère uniquement le texte de la conclusion, sans titre."""
+
+        return self._generer_section(prompt, max_tokens=800)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  ASSEMBLAGE DE LA REVUE COMPLÈTE
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _assembler_revue(self, carte: dict, sections: dict,
+                          citations: GestionnaireCitations,
+                          themes_ordonnes: list) -> str:
+        """
+        Assemble toutes les sections en un document Markdown académique.
+        """
+        meta      = carte.get("meta", {})
+        ev_globale = carte.get("evolution_globale", {})
+        annees    = ev_globale.get("annees_couvertes", [])
+        periode   = f"{min(annees)}-{max(annees)}" if annees else "inconnue"
+
+        lignes = []
+
+        # ── En-tête ───────────────────────────────────────────────────────
+        noms_themes = [t.get("nom_theme","") for _, t in themes_ordonnes]
+        domaine_approx = noms_themes[0] if noms_themes else "Domaine de recherche"
+
+        lignes.append(f"# Revue de Littérature : {domaine_approx}")
+        lignes.append(f"\n*Revue couvrant {meta.get('nb_articles_total',0)} articles "
+                      f"({periode})*\n")
+        lignes.append("---\n")
+
+        # ── Introduction ──────────────────────────────────────────────────
+        lignes.append("## 1. Introduction\n")
+        lignes.append(sections.get("introduction", "_Non générée._") + "\n")
+
+        # ── Sections thématiques ──────────────────────────────────────────
+        for i, (theme_id, theme) in enumerate(themes_ordonnes):
+            num_section = i + 2
+            nom         = theme.get("nom_theme", f"Thème {theme_id}")
+            ev          = theme.get("evolution_temporelle", {})
+            tendance    = ev.get("tendance", "")
+            annee_debut = ev.get("annee_premiere_publication", "")
+            nb_art      = theme.get("nb_articles", 0)
+
+            sous_titre = ""
+            if annee_debut:
+                sous_titre = f"*(depuis {annee_debut} — {tendance} — {nb_art} articles)*"
+
+            lignes.append(f"## {num_section}. {nom}")
+            if sous_titre:
+                lignes.append(f"\n{sous_titre}\n")
+            lignes.append("\n" + sections.get(f"theme_{theme_id}", "_Non générée._") + "\n")
+
+        # ── Méthodologie ──────────────────────────────────────────────────
+        num_methodo = len(themes_ordonnes) + 2
+        lignes.append(f"## {num_methodo}. Approches Méthodologiques\n")
+        lignes.append(sections.get("methodologie", "_Non générée._") + "\n")
+
+        # ── Débats ────────────────────────────────────────────────────────
+        num_debats = num_methodo + 1
+        lignes.append(f"## {num_debats}. Débats et Tensions dans la Littérature\n")
+        lignes.append(sections.get("debats", "_Non générée._") + "\n")
+
+        # ── État actuel ───────────────────────────────────────────────────
+        num_etat = num_debats + 1
+        lignes.append(f"## {num_etat}. État Actuel de la Recherche\n")
+        lignes.append(sections.get("etat_actuel", "_Non générée._") + "\n")
+
+        # ── Conclusion ────────────────────────────────────────────────────
+        num_ccl = num_etat + 1
+        lignes.append(f"## {num_ccl}. Conclusion\n")
+        lignes.append(sections.get("conclusion", "_Non générée._") + "\n")
+
+        # ── Bibliographie ─────────────────────────────────────────────────
+        lignes.append("\n---\n")
+        lignes.append(citations.generer_bibliographie())
+
+        return "\n".join(lignes)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  RUNNER PRINCIPAL
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def run(self, chemin_carte: str,
+            chemin_corpus: str,
+            dossier_output: str,
+            indexeur=None) -> dict:
+
+        print(f"\n{'='*60}")
+        print(f"  AGENT NARRATEUR")
+        print(f"{'='*60}")
+        debut = time.time()
+
+        Path(dossier_output).mkdir(parents=True, exist_ok=True)
+
+        # ── Chargements ───────────────────────────────────────────────────
+        carte  = self._charger_carte(chemin_carte)
+        corpus = self._charger_corpus(chemin_corpus)
+
+        citations       = GestionnaireCitations(corpus)
+        themes_ordonnes = self._ordonner_themes(carte)
+
+        print(f"[Narrateur] {len(corpus)} articles chargés")
+        print(f"[Narrateur] {len(themes_ordonnes)} thèmes à narrer\n")
+
+        # ── Génération section par section ────────────────────────────────
+        sections = {}
+
+        # 1. Introduction
+        sections["introduction"] = self._generer_introduction(carte, citations)
+        time.sleep(1)
+
+        # 2. Une section par thème (ordre chronologique)
+        noms_precedents = []
+        for theme_id, theme in themes_ordonnes:
+            sections[f"theme_{theme_id}"] = self._generer_section_theme(
+                theme_id, theme, carte, indexeur, citations, noms_precedents
+            )
+            noms_precedents.append(theme.get("nom_theme", ""))
+            time.sleep(1)
+
+        # 3. Méthodologie transversale
+        sections["methodologie"] = self._generer_section_methodologie(
+            carte, indexeur, citations
+        )
+        time.sleep(1)
+
+        # 4. Débats
+        sections["debats"] = self._generer_section_debats(
+            carte, indexeur, citations
+        )
+        time.sleep(1)
+
+        # 5. État actuel
+        sections["etat_actuel"] = self._generer_section_etat_actuel(
+            carte, indexeur, citations
+        )
+        time.sleep(1)
+
+        # 6. Conclusion
+        sections["conclusion"] = self._generer_conclusion(
+            carte, sections, citations
+        )
+
+        # ── Assemblage ────────────────────────────────────────────────────
+        print("\n  → Assemblage de la revue complète...")
+        texte_revue = self._assembler_revue(
+            carte, sections, citations, themes_ordonnes
+        )
+
+        # ── Sauvegarde Markdown ───────────────────────────────────────────
+        md_path = Path(dossier_output) / "revue_litterature.md"
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write(texte_revue)
+
+        # ── Sauvegarde JSON (pour Agent Citateur) ─────────────────────────
+        revue_json = {
+            "sections":   sections,
+            "citations":  citations.get_registre(),
+            "nb_citations": len(citations.citations_utilisees),
+            "nb_mots_total": len(texte_revue.split()),
+            "themes_ordre":  [t.get("nom_theme","") for _, t in themes_ordonnes]
+        }
+        json_path = Path(dossier_output) / "revue_litterature.json"
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(revue_json, f, ensure_ascii=False, indent=2)
+
+        duree = round(time.time() - debut, 1)
+
+        # ── Résumé ────────────────────────────────────────────────────────
+        print(f"\n{'='*60}")
+        print(f"  RÉSUMÉ AGENT NARRATEUR")
+        print(f"{'='*60}")
+        print(f"  Sections générées  : {len(sections)}")
+        print(f"  Citations utilisées: {len(citations.citations_utilisees)}")
+        print(f"  Mots générés       : {len(texte_revue.split())}")
+        print(f"  Durée totale       : {duree}s")
+        print(f"  Revue MD           : {md_path}")
+        print(f"  Revue JSON         : {json_path}")
+
+        return revue_json
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  POINT D'ENTRÉE
+# ═════════════════════════════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    from agent_indexeur import AgentIndexeur
+
+    indexeur = AgentIndexeur(dossier_chroma="data/chroma_db")
+
+    narrateur = AgentNarrateur()
+    revue = narrateur.run(
+        chemin_carte   = "data/corpus/carte_corpus.json",
+        chemin_corpus  = "data/corpus/corpus_complet.json",
+        dossier_output = "data/corpus",
+        indexeur       = indexeur
+    )
+    
